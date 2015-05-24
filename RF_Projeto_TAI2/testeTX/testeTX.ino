@@ -29,11 +29,11 @@ void setup(){
 void loop(){
   if(Serial.available() > 0){
     char c = Serial.read();
-    if(c == a){
+    if(c == 'a'){
       radio.openWritingPipe(pipes[2]);
       radio.startWrite(&vai, sizeof(vai));
     }
-    if(c == b){
+    if(c == 'b'){
       radio.openWritingPipe(pipes[1]);
       radio.startWrite(&vai, sizeof(vai));
     }
@@ -48,11 +48,11 @@ void radioReceive(){
     radio.read(&veio, sizeof(veio));
     if(veio[1] == 1){
       Serial.print("Chegou de 1: ");
-      Serial.println(array[2]);
+      Serial.println(veio[2]);
     }
     if(veio[1] == 2){
       Serial.print("Chegou de 2: ");
-      Serial.println(array[2]);
+      Serial.println(veio[2]);
     }
     /*if(go == '1'){
       Serial.println("1");

@@ -37,7 +37,7 @@ void radioReceive(){
     Serial.println("Chegou");
     radio.read(&foi, sizeof(int));
     if(foi == 10){
-      array[2] = foi+1;
+      array[1] = foi+1;
       radio.writeAckPayload(1, &array, sizeof(array));
     }
     /*if(go == '3'){

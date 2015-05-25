@@ -7,7 +7,7 @@ RF24 radio(9,10);
 const uint64_t pipes[] = {0x78787878A3LL, 0x78787878E1LL};
 
 int vai = 10;
-int veio[2];
+int veio[] = {0,0};
 
 void setup(){
   Serial.begin(9600);
@@ -29,11 +29,11 @@ void setup(){
 void loop(){
   if(Serial.available() > 0){
     char c = Serial.read();
-    if(c == 'a'){
-      radio.openWritingPipe(pipes[2]);
+    if(c == '2'){
+      radio.openWritingPipe(pipes[0]);
       radio.startWrite(&vai, sizeof(vai));
     }
-    if(c == 'b'){
+    if(c == '1'){
       radio.openWritingPipe(pipes[1]);
       radio.startWrite(&vai, sizeof(vai));
     }
@@ -46,13 +46,13 @@ void radioReceive(){
   if(rx){
     Serial.println("Chegou");
     radio.read(&veio, sizeof(veio));
-    if(veio[1] == 1){
+    if(veio[0] == 1){
       Serial.print("Chegou de 1: ");
-      Serial.println(veio[2]);
+      Serial.println(veio[1]);
     }
-    if(veio[1] == 2){
+    if(veio[0] == 2){
       Serial.print("Chegou de 2: ");
-      Serial.println(veio[2]);
+      Serial.println(veio[1]);
     }
     /*if(go == '1'){
       Serial.println("1");

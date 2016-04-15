@@ -1,5 +1,9 @@
 /*
+<<<<<<< HEAD
   Copyright (c) 2012, 2015 Oracle and/or its affiliates. All rights reserved.
+=======
+  Copyright (c) 20012, Oracle and/or its affiliates. All rights reserved.
+>>>>>>> origin/Arduino
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -22,20 +26,27 @@
 
   Version 1.0.0a Created by Dr. Charles A. Bell, April 2012.
   Version 1.0.0b Updated by Dr. Charles A. Bell, October 2013.
+<<<<<<< HEAD
   Version 1.0.1b Updated by Dr. Charles A. Bell, February 2014.
   Version 1.0.2b Updated by Dr. Charles A. Bell, April 2014.
   Version 1.0.3rc Updated by Dr. Charles A. Bell, March 2015.
   Version 1.0.4ga Updated by Dr. Charles A. Bell, July 2015.
+=======
+>>>>>>> origin/Arduino
 */
 #include "Arduino.h"
 #include "mysql.h"
 #include <sha1.h>
+<<<<<<< HEAD
 #include <avr/pgmspace.h>
+=======
+>>>>>>> origin/Arduino
 
 #define MAX_CONNECT_ATTEMPTS 3
 #define MAX_TIMEOUT          10
 #define MIN_BYTES_NETWORK    8
 
+<<<<<<< HEAD
 const char CONNECTED[] PROGMEM = "Connected to server version ";
 const char DISCONNECTED[] PROGMEM = "Disconnected.";
 const char MEMORY_ERROR[] PROGMEM = "Memory error.";
@@ -45,6 +56,8 @@ const char ROWS[] PROGMEM = " rows in result.";
 const char READ_COLS[] PROGMEM = "ERROR: You must read the columns first!";
 
 
+=======
+>>>>>>> origin/Arduino
 // Begin public methods
 
 Connector::Connector() {
@@ -80,6 +93,10 @@ boolean Connector::mysql_connect(IPAddress server, int port,
 {
   int connected = 0;
   int i = -1;
+<<<<<<< HEAD
+=======
+  ok_packet *packet;
+>>>>>>> origin/Arduino
 
   // Retry up to MAX_CONNECT_ATTEMPTS times 1 second apart.
   do {
@@ -93,12 +110,25 @@ boolean Connector::mysql_connect(IPAddress server, int port,
     parse_handshake_packet();
     send_authentication_packet(user, password);
     read_packet();
+<<<<<<< HEAD
     if (check_ok_packet() != 0) {
       parse_error_packet();
       return false;
     }
     print_message(CONNECTED);
     Serial.println(server_version);
+=======
+    packet = (ok_packet *)malloc(sizeof(ok_packet));
+    if (parse_ok_packet(packet) != 0) {
+      free(packet);
+      parse_error_packet();
+      return false;
+    }
+    free(packet);
+    Serial.print("Connected to server version ");
+    Serial.print(server_version);
+    Serial.println(".");
+>>>>>>> origin/Arduino
     free(server_version); // don't need it anymore
     return true;
   }
@@ -107,6 +137,7 @@ boolean Connector::mysql_connect(IPAddress server, int port,
 
 
 /**
+<<<<<<< HEAD
  * Disconnect from the server.
  *
  * Terminates connection with the server. You must call mysql_connect()
@@ -123,6 +154,8 @@ void Connector::disconnect()
 }
 
 /**
+=======
+>>>>>>> origin/Arduino
  * cmd_query - Execute a SQL statement
  *
  * This method executes the query specified as a character array that is
@@ -231,6 +264,7 @@ void Connector::show_results() {
 
   // Report how many rows were read
   Serial.print(rows);
+<<<<<<< HEAD
   print_message(ROWS, true);
   free_columns_buffer();
 
@@ -262,6 +296,10 @@ bool Connector::clear_ok_packet() {
     }
   } while (num > 0);
   return true;
+=======
+  Serial.println(" rows in result.");
+  free_columns_buffer();
+>>>>>>> origin/Arduino
 }
 
 
@@ -390,7 +428,13 @@ boolean Connector::run_query(int query_len)
 
   // Read a response packet and check it for Ok or Error.
   read_packet();
+<<<<<<< HEAD
   int res = check_ok_packet();
+=======
+  ok_packet *p = (ok_packet *)malloc(sizeof(ok_packet));
+  int res = parse_ok_packet(p);
+  free(p);
+>>>>>>> origin/Arduino
   if (res == ERROR_PACKET) {
     parse_error_packet();
     return false;
@@ -423,11 +467,17 @@ int Connector::wait_for_client() {
   int num = 0;
   int timeout = 0;
   do {
+<<<<<<< HEAD
     num = client.available();
     timeout++;
     if (num < MIN_BYTES_NETWORK and timeout < MAX_TIMEOUT) {
       delay(100);  // adjust for network latency
     }
+=======
+    delay(50); // adjust for network latency
+    num = client.available();
+    timeout++;
+>>>>>>> origin/Arduino
   } while (num < MIN_BYTES_NETWORK and timeout < MAX_TIMEOUT);
   return num;
 }
@@ -595,19 +645,27 @@ boolean Connector::scramble_password(char *password, byte *pwd_hash) {
 void Connector::read_packet() {
   byte local[4];
 
+<<<<<<< HEAD
   if (buffer != NULL)
     free(buffer);
+=======
+//  if (buffer != NULL)
+  free(buffer);
+>>>>>>> origin/Arduino
 
 #if not defined WIFI
   // Wait for client (the server) to send data
   wait_for_client();
 #endif
 
+<<<<<<< HEAD
   int avail_bytes = wait_for_client();
   while (avail_bytes < 4) {
     avail_bytes = wait_for_client();
   }
 
+=======
+>>>>>>> origin/Arduino
   // Read packet header
   for (int i = 0; i < 4; i++) {
 #if defined WIFI
@@ -622,11 +680,16 @@ void Connector::read_packet() {
   packet_len += ((uint32_t)local[2] << 16);
 #if not defined WIFI
   // We must wait for slow arriving packets for Ethernet shields only.
+<<<<<<< HEAD
   avail_bytes = wait_for_client();
+=======
+  int avail_bytes = wait_for_client();
+>>>>>>> origin/Arduino
   while (avail_bytes < packet_len) {
     avail_bytes = wait_for_client();
   }
 #endif
+<<<<<<< HEAD
   // Check for valid packet.
   if (packet_len < 0) {
     print_message(PACKET_ERROR, true);
@@ -637,6 +700,11 @@ void Connector::read_packet() {
     print_message(MEMORY_ERROR, true);
     return;
   }
+=======
+  buffer = (byte *)malloc(packet_len+4);
+
+  // read packet number is in buffer[3]
+>>>>>>> origin/Arduino
   for (int i = 0; i < 4; i++)
     buffer[i] = local[i];
 
@@ -646,6 +714,10 @@ void Connector::read_packet() {
 #endif
     buffer[i] = client.read();
   }
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/Arduino
 }
 
 
@@ -692,9 +764,36 @@ void Connector::parse_handshake_packet() {
   i += 27; // skip ahead
   for (int j = 0; j < 12; j++)
     seed[j+8] = buffer[i+j];
+<<<<<<< HEAD
 }
 
 /**
+=======
+
+}
+
+/**
+ * parse_eof_packet - Decipher an end of file packet
+ *
+ * This will read the warnings and flags of an EOF packet defined as
+ * follows.
+ *
+ *  Bytes                 Name
+ *  -----                 ----
+ *  1                     field_count, always = 0xfe
+ *  2                     warning_count
+ *  2                     Status Flags
+ *
+ * packet[in]      location in the buffer of packet
+*/
+void Connector::parse_eof_packet(eof_packet *packet) {
+  packet->warnings = read_int(5, 2);
+  packet->flags = read_int(7, 2);
+}
+
+
+/**
+>>>>>>> origin/Arduino
  * parse_error_packet - Display the error returned from the server
  *
  * This method parses an error packet from the server and displays the
@@ -723,10 +822,18 @@ void Connector::parse_error_packet() {
 
 
 /**
+<<<<<<< HEAD
  * check_ok_packet - Decipher an Ok packet from the server.
  *
  * This method attempts to parse an Ok packet. If the packet is not an
  * Ok, packet, it returns the packet type.
+=======
+ * parse_ok_packet - Decipher an Ok packet from the server.
+ *
+ * This method attempts to parse an Ok packet. If the packet is not an
+ * Ok, packet, it returns the packet type. Otherwise, it attempts to
+ * parse the Ok packet defined by the following.
+>>>>>>> origin/Arduino
  *
  *  Bytes                       Name
  *  -----                       ----
@@ -737,12 +844,29 @@ void Connector::parse_error_packet() {
  *  2                           warning_count
  *  n   (until end of packet)   message
  *
+<<<<<<< HEAD
  * Returns integer - 0 = successful parse, packet type if not an Ok packet
 */
 int Connector::check_ok_packet() {
   int type = buffer[4];
   if (type != OK_PACKET)
     return type;
+=======
+ * packet[in]      location in the buffer of packet
+ *
+ * Returns integer - 0 = successful parse, packet type if not an Ok packet
+*/
+int Connector::parse_ok_packet(ok_packet *packet) {
+  int type = buffer[4];
+  if (type != OK_PACKET)
+    return type;
+
+  packet->affected_rows = read_int(5, 0);
+  packet->insert_id = read_int(6, 0);
+  packet->server_status = read_int(7, 2);
+  packet->warning_count = read_int(9, 2);
+  memcpy((char *)&packet->message, (char *)&buffer[11], packet_len-7);
+>>>>>>> origin/Arduino
   return 0;
 }
 
@@ -773,8 +897,11 @@ int Connector::get_lcb_len(int offset) {
 }
 
 
+<<<<<<< HEAD
 #if defined WITH_SELECT
 
+=======
+>>>>>>> origin/Arduino
 /**
  * read_string - Retrieve a string from the buffer
  *
@@ -795,7 +922,10 @@ char *Connector::read_string(int *offset) {
   return str;
 }
 
+<<<<<<< HEAD
 #endif
+=======
+>>>>>>> origin/Arduino
 
 /**
  * read_int - Retrieve an integer from the buffer in size bytes.
@@ -857,7 +987,11 @@ void Connector::store_int(byte *buff, long value, int size) {
 }
 
 
+<<<<<<< HEAD
 #if defined WITH_DEBUG
+=======
+#if defined WITH_SELECT
+>>>>>>> origin/Arduino
 
 /**
  * print_packet - Print the contents of a packet via Serial.print
@@ -886,9 +1020,12 @@ void Connector::print_packet() {
   Serial.println();
 }
 
+<<<<<<< HEAD
 #endif
 
 #if defined WITH_SELECT
+=======
+>>>>>>> origin/Arduino
 
 /**
  * get_field - Read a field from the server
@@ -978,6 +1115,7 @@ int Connector::get_row() {
 */
 boolean Connector::get_fields()
 {
+<<<<<<< HEAD
   int num_fields = 0;
   int res = 0;
 
@@ -985,13 +1123,22 @@ boolean Connector::get_fields()
     return false;
   }
   num_fields = buffer[4]; // From result header packet
+=======
+  int num_fields = buffer[4]; // From result header packet
+  int res = 0;
+
+>>>>>>> origin/Arduino
   columns.num_fields = num_fields;
   num_cols = num_fields; // Save this for later use
   for (int f = 0; f < num_fields; f++) {
     field_struct *field = (field_struct *)malloc(sizeof(field_struct));
     res = get_field(field);
     if (res == EOF_PACKET) {
+<<<<<<< HEAD
       print_message(BAD_MOJO, true);
+=======
+      Serial.println("Bad mojo. EOF found reading column header.");
+>>>>>>> origin/Arduino
       return false;
     }
     columns.fields[f] = field;
@@ -1009,15 +1156,24 @@ boolean Connector::get_fields()
  * in the class.
  *
 */
+<<<<<<< HEAD
 int Connector::get_row_values() {
+=======
+boolean Connector::get_row_values() {
+>>>>>>> origin/Arduino
   int res = 0;
   int offset = 0;
 
   // It is an error to try to read rows before columns
   // are read.
   if (!columns_read) {
+<<<<<<< HEAD
     print_message(READ_COLS, true);
     return EOF_PACKET;
+=======
+    Serial.println("ERROR: You must read the columns first!");
+    return true;
+>>>>>>> origin/Arduino
   }
   // Drop any row data already read
   free_row_buffer();
@@ -1030,7 +1186,14 @@ int Connector::get_row_values() {
       row.values[f] = read_string(&offset);
     }
   }
+<<<<<<< HEAD
   return res;
+=======
+  else {
+    return res;
+  }
+  return true;
+>>>>>>> origin/Arduino
 }
 
 #endif

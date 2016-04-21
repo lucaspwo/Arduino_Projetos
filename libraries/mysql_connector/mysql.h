@@ -1,9 +1,5 @@
 /*
-<<<<<<< HEAD
   Copyright (c) 2012, 2015 Oracle and/or its affiliates. All rights reserved.
-=======
-  Copyright (c) 20012, Oracle and/or its affiliates. All rights reserved.
->>>>>>> origin/Arduino
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -31,13 +27,10 @@
 
   Version 1.0.0a Created by Dr. Charles A. Bell, April 2012.
   Version 1.0.0b Updated by Dr. Charles A. Bell, October 2013.
-<<<<<<< HEAD
   Version 1.0.1b Updated by Dr. Charles A. Bell, February 2014.
   Version 1.0.2b Updated by Dr. Charles A. Bell, April 2014.
   Version 1.0.3rc Updated by Dr. Charles A. Bell, March 2015.
   Version 1.0.4ga Updated by Dr. Charles A. Bell, July 2015.
-=======
->>>>>>> origin/Arduino
 */
 #ifndef mysql_h
 #define mysql_h
@@ -46,45 +39,18 @@
 #include <SPI.h>
 #include <Ethernet.h>
 
-<<<<<<< HEAD
 #define WITH_SELECT  // Uncomment this to use SELECT queries
 
 //#define WITH_DEBUG   // Uncomment this for enabling debugging of messages
 
 //#define WIFI         // Uncomment this for use with the WiFi shield
 //#include <WiFi.h>    // Uncomment this for use with the WiFi shield
-=======
-#define WITH_SELECT  // Comment out this for use without SELECT capability
-                     // to save space.
-
-//#define WIFI       // Uncomment out this for use with the WiFi shield
-//#include <WiFi.h>  // Uncomment out this for use with the WiFi shield
->>>>>>> origin/Arduino
 
 #define OK_PACKET     0x00
 #define EOF_PACKET    0xfe
 #define ERROR_PACKET  0xff
 #define MAX_FIELDS    0x20   // Maximum number of fields. Reduce to save memory. Default=32
-<<<<<<< HEAD
 #define VERSION_STR   "1.0.4ga"
-=======
-#define VERSION_STR   "1.0.0b"
-
-// Structure for retrieving the OK packet.
-typedef struct {
-  int affected_rows;
-  int insert_id;
-  int server_status;
-  int warning_count;
-  char message[64];
-} ok_packet;
-
-// Structure for retrieving the EOF packet.
-typedef struct {
-  int warnings;
-  int flags;
-} eof_packet;
->>>>>>> origin/Arduino
 
 #if defined WITH_SELECT
 
@@ -140,10 +106,7 @@ class Connector
     Connector();
     boolean mysql_connect(IPAddress server, int port,
                           char *user, char *password);
-<<<<<<< HEAD
     void disconnect();
-=======
->>>>>>> origin/Arduino
     boolean cmd_query(const char *query);
     boolean cmd_query_P(const char *query);
     int is_connected () { return client.connected(); }
@@ -154,10 +117,7 @@ class Connector
     void free_columns_buffer();
     void free_row_buffer();
     void show_results();
-<<<<<<< HEAD
     bool clear_ok_packet();
-=======
->>>>>>> origin/Arduino
 #endif
   private:
     byte *buffer;
@@ -183,19 +143,13 @@ class Connector
     void send_authentication_packet(char *user, char *password);
     void read_packet();
     void parse_handshake_packet();
-<<<<<<< HEAD
     int check_ok_packet();
-=======
-    void parse_eof_packet(eof_packet *packet);
-    int parse_ok_packet(ok_packet *packet);
->>>>>>> origin/Arduino
     void parse_error_packet();
     boolean run_query(int query_len);
 
     // Utility methods
     boolean scramble_password(char *password, byte *pwd_hash);
     int get_lcb_len(int offset);
-<<<<<<< HEAD
     int read_int(int offset, int size=0);
     void store_int(byte *buff, long value, int size);
 #if defined WITH_SELECT
@@ -221,21 +175,6 @@ class Connector
       if (EOL)
         Serial.println();
     }
-=======
-    char *read_string(int *offset);
-    int read_int(int offset, int size=0);
-    void store_int(byte *buff, long value, int size);
-#if defined WITH_SELECT
-    int get_field(field_struct *fs);
-    int get_row();
-    boolean get_fields();
-    boolean get_row_values();
-    column_names *query_result();
-
-    // diagnostic methods
-    void print_packet();
-#endif
->>>>>>> origin/Arduino
 };
 
 #endif

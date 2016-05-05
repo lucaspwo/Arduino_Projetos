@@ -6,7 +6,7 @@
 #include <mysql.h>
 
 byte mac_addr[] = {0x90, 0xA2, 0xDA, 0x00, 0xC9, 0xB9}; //endereço MAC do arduino
-IPAddress server_addr(192,168,43,113);		//endereço de IP do Raspberry Pi
+IPAddress server_addr(192,168,0,106);		//endereço de IP do Raspberry Pi
 char user[] = "arduino";				//nome de usuário para acessar a database
 char password[] = "senha";				//senha do usuário
 

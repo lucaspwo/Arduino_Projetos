@@ -11,7 +11,7 @@
 
 /* Setup for Ethernet Library */
 byte mac_addr[] = { 0x90, 0xA2, 0xDA, 0x00, 0xC9, 0xB9 };
-IPAddress server_addr(10, 6, 2, 206);
+IPAddress server_addr(192, 168, 0, 106);
 
 /* Setup for the Connector/Arduino */
 Connector my_conn; // The Connector/Arduino reference

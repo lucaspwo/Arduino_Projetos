@@ -45,7 +45,7 @@ void setup()
   
   Wire.begin();             //inicializando a biblioteca.
   
-  configuraModulo();         //chamando a função para configurar o módulo.
+  //configuraModulo();         //chamando a função para configurar o módulo.
 }
 
 
@@ -85,10 +85,10 @@ void configuraModulo()
      o valor de 9horas, digite apenas o dígito 9, nunca 09.
   */
   segundo = 0;
-  minuto = 55;
+  minuto = 12;
   hora = 9;
-  diaDaSemana = 3;
-  diaDoMes = 4;
+  diaDaSemana = 1;
+  diaDoMes = 9;
   mes = 5;
   ano = 16;
 

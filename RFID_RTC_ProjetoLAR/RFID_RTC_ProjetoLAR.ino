@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 #include <SPI.h>
 //#include <Ethernet.h>
 //#include <sha1.h>
@@ -55,7 +57,7 @@ void loop(){
    	//flag = true;
     if (mfrc522.PICC_ReadCardSerial()){
     	//Mostra UID na serial
-      	Serial.print("UID da tag :");
+      	//Serial.print("UID da tag :");
    	    byte letra;
       	for (byte i = 0; i < mfrc522.uid.size; i++){
         	//Serial.print(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " ");
@@ -98,12 +100,12 @@ void leHora(char *_query){
   	Wire.endTransmission(); //finalizando o modo de gravação.
   	Wire.requestFrom(enderecoI2C, 7);    //Abrindo o modo I2C no modo de leitura.
 
-  	segundo = bcdToDec(Wire.read() & 0x7f); //Alguns dados precisam de máscaras antes 
-                                          //da conversão porque certos bits são 
-                                          //bits de controle. 
-  	minuto = bcdToDec(Wire.read());         //convertendo os minutos. 
-  	hora = bcdToDec(Wire.read() & 0x3f);    //Alguns dados precisam de máscaras antes 
-                                          //da conversão porque certos bits são 
+  	segundo = bcdToDec(Wire.read() & 0x7f); //Alguns dados precisam de máscaras antes
+                                          //da conversão porque certos bits são
+                                          //bits de controle.
+  	minuto = bcdToDec(Wire.read());         //convertendo os minutos.
+  	hora = bcdToDec(Wire.read() & 0x3f);    //Alguns dados precisam de máscaras antes
+                                          //da conversão porque certos bits são
                                           //bits de controle. Essa máscara define o
                                           //relógio para trabalhar no modo de 24h.
   	diaDaSemana = bcdToDec(Wire.read());    //dia da semana, onde domingo começa com "0".
@@ -205,7 +207,7 @@ void do_query(const char *q) {
 byte decToBcd(byte val){
   return ( (val/10*16) + (val%10) );
 }*/
- 
+
 /* Função que realiza uma conversão de Binário para Decimal.
    Utilizada na impressão dos dados na tela do Monitor Serial.
 */
@@ -214,18 +216,18 @@ byte bcdToDec(byte val){
   return ( (val/16*10) + (val%16) );
 }*/
 
-/* Essa função insere o dígito "0" à esquerda dos dados gravados no módulo com 
+/* Essa função insere o dígito "0" à esquerda dos dados gravados no módulo com
    apenas um dígito, já que os valores menores que 10 são armazenados no módulo
-   com apenas um dígito.  
+   com apenas um dígito.
 */
    /*
 String ajustaZero(byte dado){
   String dadoAjustado;
-  if (dado < 10) 
+  if (dado < 10)
   {
     dadoAjustado += "0";  //concatena o dígito "0" ao valor da variável.
   }
   dadoAjustado += dado;   //concatena o dígito "0" ao valor do dado.
-  
+
   return dadoAjustado;    //retorna o valor do dado ajustado.
 }*/

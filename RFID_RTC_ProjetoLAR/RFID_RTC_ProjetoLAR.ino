@@ -8,7 +8,7 @@
 //#include <stdlib.h>
 #include <MFRC522.h>
 //#include <Wire.h>
-#include <SoftwareSerial.h>
+//#include <SoftwareSerial.h>
 
 //#define enderecoI2C 0x68
 
@@ -29,7 +29,7 @@ Connector my_conn; 						//cria um objeto da conexão, da biblioteca
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
-SoftwareSerial sSerial(7, 6); //RX, TX
+//SoftwareSerial sSerial(7, 6); //RX, TX
 
 void setup(){
 	SPI.begin();
@@ -40,7 +40,7 @@ void setup(){
 	while (!Serial) {
  		; // wait for serial port to connect. Needed for Leonardo only
 	}
-	sSerial.begin(9600);
+	//sSerial.begin(9600);
 	delay(1000);
 	/*Serial.println("Conectando a database...");
 	if (my_conn.mysql_connect(server_addr, 3306, user, password)) {
@@ -81,7 +81,7 @@ void loop(){
 	//Wire.write(String(query).c_str());
 	//Wire.endTransmission();
 	//flag = false;*/
-	sSerial.print(tag);
+	//sSerial.print(tag);
 	delay(1000);
   }
 }

@@ -12,7 +12,7 @@ class Wtv020sd16p
 public:
   Wtv020sd16p(int resetPin,int clockPin,int dataPin,int busyPin);
   void reset();
-  void playVoice(int voiceNumber);
+  bool playVoice(int voiceNumber);
   void asyncPlayVoice(int voiceNumber);
   void stopVoice();
   void pauseVoice();
@@ -24,7 +24,7 @@ private:
   int _clockPin;
   int _dataPin;
   int _busyPin;
-  int _busyPinState;
+  bool _busyPinState;
 };
 
 #endif

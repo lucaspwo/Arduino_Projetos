@@ -18,7 +18,7 @@ Wtv020sd16p::Wtv020sd16p(int resetPin,int clockPin,int dataPin,int busyPin)
   _clockPin=clockPin;
   _dataPin=dataPin;
   _busyPin=busyPin;
-  _busyPinState=HIGH;
+  _busyPinState=true;
   pinMode(_resetPin, OUTPUT);
   pinMode(_clockPin, OUTPUT);
   pinMode(_dataPin, OUTPUT);
@@ -37,12 +37,13 @@ void Wtv020sd16p::reset(){
   delay(300);
 }
 
-void Wtv020sd16p::playVoice(int voiceNumber){  
+bool Wtv020sd16p::playVoice(int voiceNumber){  
   sendCommand(voiceNumber);
   _busyPinState=digitalRead(_busyPin);
-  while(_busyPinState==HIGH){
+  while(_busyPinState==true){
     _busyPinState=digitalRead(_busyPin);
   }
+  return _busyPinState;
 }
 
 void Wtv020sd16p::asyncPlayVoice(int voiceNumber){

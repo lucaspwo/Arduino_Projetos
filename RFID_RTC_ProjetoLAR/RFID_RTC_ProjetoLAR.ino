@@ -8,7 +8,7 @@
 //#include <stdlib.h>
 #include <MFRC522.h>
 //#include <Wire.h>
-//#include <SoftwareSerial.h>
+#include <SoftwareSerial.h>
 
 //#define enderecoI2C 0x68
 
@@ -29,7 +29,7 @@ Connector my_conn; 						//cria um objeto da conexão, da biblioteca
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
-//SoftwareSerial sSerial(7, 6); //RX, TX
+SoftwareSerial sSerial(3, 4); //RX, TX
 
 void setup(){
 	SPI.begin();
@@ -40,7 +40,7 @@ void setup(){
 	while (!Serial) {
  		; // wait for serial port to connect. Needed for Leonardo only
 	}
-	//sSerial.begin(9600);
+	sSerial.begin(9600);
 	delay(1000);
 	/*Serial.println("Conectando a database...");
 	if (my_conn.mysql_connect(server_addr, 3306, user, password)) {
@@ -52,10 +52,32 @@ void setup(){
 }
 
 void loop(){
+	if(sSerial.available() > 0){
+		Serial.print("d: ");
+		String vetor = "";
+		//char vetor[11] = "";
+		char temp;
+		while(sSerial.available() > 0){
+			temp = sSerial.read();
+			vetor += String(temp);
+		}
+		//for(int i = 0; i < 11; i++){
+			//temp = sSerial.read();
+			//if((int(temp) == -1 || int(temp) > 57))
+				//vetor[i] = temp;
+				//break;
+			//vetor[i] = temp;
+			//Serial.println(sSerial.read());
+		//}
+		//if(11* sizeof(char) == sizeof(String(vetor)))
+		Serial.println(vetor);
+	}
+
 	if (mfrc522.PICC_IsNewCardPresent()){
-	String tag = "";
+		String tag = "";
    	//flag = true;
     if (mfrc522.PICC_ReadCardSerial()){
+			Serial.print("t: ");
     	//Mostra UID na serial
       	//Serial.print("UID da tag :");
    	    byte letra;

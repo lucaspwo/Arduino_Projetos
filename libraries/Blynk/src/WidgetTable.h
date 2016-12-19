@@ -11,30 +11,29 @@
 #ifndef WidgetTable_h
 #define WidgetTable_h
 
-#include <Blynk/BlynkApi.h>
+#include <Blynk/BlynkWidgetBase.h>
 
 class WidgetTable
+    : public BlynkWidgetBase
 {
 public:
-	typedef void (*ItemSelectChange)(int index, bool selected);
-	typedef void (*ItemOrderChange)(int indexFrom, int indexTo);
+    typedef void (*ItemSelectChange)(int index, bool selected);
+    typedef void (*ItemOrderChange)(int indexFrom, int indexTo);
 
 public:
-    WidgetTable(uint8_t pin = -1)
-		: mPin(pin)
+    WidgetTable(uint8_t vPin = -1)
+        : BlynkWidgetBase(vPin)
         , mOnOrderChange(NULL)
         , mOnSelectChange(NULL)
-	{}
+    {}
 
-    void setVPin(int vPin) { mPin = vPin; }
-
-    void onWrite(BlynkReq& request, const BlynkParam& param) {
+    void onWrite(BlynkReq BLYNK_UNUSED &request, const BlynkParam& param) {
         if (mOnOrderChange && 0 == strcmp(param[0].asStr(), "order")) {
-        	mOnOrderChange(param[1].asInt(), param[2].asInt());
+            mOnOrderChange(param[1].asInt(), param[2].asInt());
         } else if (mOnSelectChange && 0 == strcmp(param[0].asStr(), "select")) {
-        	mOnSelectChange(param[1].asInt(), true);
+            mOnSelectChange(param[1].asInt(), true);
         } else if (mOnSelectChange && 0 == strcmp(param[0].asStr(), "deselect")) {
-        	mOnSelectChange(param[1].asInt(), false);
+            mOnSelectChange(param[1].asInt(), false);
         }
     }
 
@@ -55,7 +54,6 @@ public:
     }
 
 private:
-    uint8_t mPin;
     ItemOrderChange  mOnOrderChange;
     ItemSelectChange mOnSelectChange;
 

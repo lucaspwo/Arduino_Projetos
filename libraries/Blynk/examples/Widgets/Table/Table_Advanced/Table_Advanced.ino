@@ -33,7 +33,7 @@
 char auth[] = "YourAuthToken";
 
 WidgetTable table;
-BLYNK_ATTACH_WIDGET(table, V2);
+BLYNK_ATTACH_WIDGET(table, V1);
 
 int rowIndex = 0;
 
@@ -41,10 +41,6 @@ void setup()
 {
   Serial.begin(9600);
   Blynk.begin(auth);
-
-  while (Blynk.connect() == false) {
-    // Wait until connected
-  }
 
   // Setup table event callbacks
   table.onOrderChange([](int indexFrom, int indexTo) {

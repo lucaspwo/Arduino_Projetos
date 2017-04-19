@@ -3,6 +3,12 @@ MFRC522
 
 .. image:: https://travis-ci.org/miguelbalboa/rfid.svg?branch=master
     :target: https://travis-ci.org/miguelbalboa/rfid
+.. image:: https://img.shields.io/badge/C%2B%2B-11-brightgreen.svg
+    :target: `compatible ide`_
+.. image:: https://img.shields.io/github/release/miguelbalboa/rfid.svg?colorB=green
+    :target: https://github.com/miguelbalboa/rfid/releases
+.. image:: https://img.shields.io/badge/ArduinoIDE-%3E%3D1.6.10-lightgrey.svg
+    :target: `compatible ide`_
 
 Arduino library for MFRC522 and other RFID RC522 based modules.
 
@@ -32,6 +38,7 @@ What works and not?
 
   #. Communication with MIFARE Ultralight.
   #. Other PICCs (Ntag216).
+  #. More than 2 modules, require a multiplexer `#191 <https://github.com/miguelbalboa/rfid/issues/191#issuecomment-242631153>`_.
 
 * **Works not**
   
@@ -41,7 +48,11 @@ What works and not?
   #. Communication with smart phone, not `supported by hardware`_.
   #. Card emulation, not `supported by hardware`_.
   #. Use of IRQ pin. But there is a proof-of-concept example.
-
+  #. With Arduino Yun like `#111 <https://github.com/miguelbalboa/rfid/issues/111>`_, not supported by software.
+  #. Power reduction modes `#269 <https://github.com/miguelbalboa/rfid/issues/269>`_, not supported by software.
+  #. I2C instead of SPI `#240 <https://github.com/miguelbalboa/rfid/issues/240>`_, not supported by software.
+  #. UART instead of SPI `#281 <https://github.com/miguelbalboa/rfid/issues/281>`_, not supported by software.
+  
 * **Need more?**
 
   #. If software: code it and make a pull request.
@@ -69,6 +80,8 @@ Some user made some patches/suggestions/ports for other boards:
 * Linux: https://github.com/miguelbalboa/rfid/pull/216
 * chipKIT: https://github.com/miguelbalboa/rfid/pull/230
 * ESP8266 (native): https://github.com/miguelbalboa/rfid/pull/235
+* ESP8266 nonos sdk: https://github.com/mmmmar/esp8266-mfrc522
+* LPCOPen (in C): https://github.com/miguelbalboa/rfid/pull/258
 
 Note that the main target/support of library is still Arduino.
 
@@ -82,6 +95,13 @@ Support/issue
 
 3. It seems to be a software issue?
     Open an issue on github.
+
+
+.. _code style:
+Code style
+----------
+
+Please use ``fixed integers``, see `stdint.h`_. Why? This library is compatible to different boards which use different architectures (16bit vs 32bit). So unfixed ``int`` has different sizes on different environments and may cause unpredictable behaviour.
 
 
 .. _pin layout:
@@ -184,6 +204,8 @@ Troubleshooting
   #. Check your connection, see `Pin Layout`_ .
   #. Check voltage. Most breakouts work with 3.3V.
   #. SPI only works with 3.3V, most breakouts seem 5V tollerant, but try a level shifter.
+  #. SPI do not like long connections. Try shorter connections.
+  #. SPI do not like prototyping boards. Maybe try a soldered connections.
   #. According to reports #101, #126 and #131, there may be a problem with the soldering on the MFRC522 breakout. You could fix this on your own.
 
 
@@ -204,7 +226,7 @@ Troubleshooting
   #. Animal RFID tags are not supported. They use a different frequency (125 kHz).
   #. Hardware may be corrupted, most products are from china and sometimes the quality is really poor. Contact your seller.
   #. Newer versions of Mifare cards like DESFire/Ultralight maybe not work according to missing authentification, see `security`_ or different `protocol`_.
-
+  #. Some boards bought from chinese manufactures do not use the best components and this can affect the detection of different types of tag/card. In some of these boards, the L1 and L2 inductors do not have a high enough current so the signal generated is not enough to get Ultralight C and NTAG203 tags to work, replacing those with same inductance (2.2uH) but higher operating current inductors should make things work smoothly. Also, in some of those boards the  harmonic and matching circuit needs to be tuned, for this replace C4 and C5 with 33pf capacitors and you are all set. (Source: `Mikro Elektronika`_) 
 
 * **My mobile phone doesn't recognize the MFRC522** or **my MFRC522 can't read data from other MFRC522**
 
@@ -269,3 +291,5 @@ It has been extended with functionality to alter sector 0 on Chinese UID changea
 .. _broken: https://eprint.iacr.org/2008/166
 .. _supported by hardware: https://web.archive.org/web/20151210045625/http://www.nxp.com/documents/leaflet/939775017564.pdf
 .. _Arduino forum: https://forum.arduino.cc
+.. _stdint.h: https://en.wikibooks.org/wiki/C_Programming/C_Reference/stdint.h
+.. _Mikro Elektronika: https://forum.mikroe.com/viewtopic.php?f=147&t=64203

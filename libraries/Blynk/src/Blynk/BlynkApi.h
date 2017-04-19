@@ -14,6 +14,7 @@
 #include <Blynk/BlynkConfig.h>
 #include <Blynk/BlynkDebug.h>
 #include <Blynk/BlynkParam.h>
+#include <Blynk/BlynkTimer.h>
 #include <Blynk/BlynkHandlers.h>
 #include <Blynk/BlynkProtocolDefs.h>
 
@@ -112,6 +113,17 @@ public:
      */
     void syncAll() {
         static_cast<Proto*>(this)->sendCmd(BLYNK_CMD_HARDWARE_SYNC);
+    }
+
+    /**
+     * Sends internal command
+     */
+    template <typename... Args>
+    void sendInternal(Args... params) {
+        char mem[BLYNK_MAX_SENDBYTES];
+        BlynkParam cmd(mem, 0, sizeof(mem));
+        cmd.add_multi(params...);
+        static_cast<Proto*>(this)->sendCmd(BLYNK_CMD_INTERNAL, 0, cmd.getBuffer(), cmd.getLength()-1);
     }
 
     /**

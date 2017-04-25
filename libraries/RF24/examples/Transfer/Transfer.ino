@@ -15,7 +15,6 @@ TMRh20 2014
 
 #include <SPI.h>
 #include "RF24.h"
-#include "printf.h"
 
 /*************  USER Configuration *****************************/
                                           // Hardware configuration
@@ -33,8 +32,7 @@ bool TX=1,RX=0,role=0;
 
 void setup(void) {
 
-  Serial.begin(57600);
-  printf_begin();
+  Serial.begin(115200);
 
   radio.begin();                           // Setup and configure rf radio
   radio.setChannel(1);
@@ -50,8 +48,8 @@ void setup(void) {
   radio.startListening();                 // Start listening
   radio.printDetails();                   // Dump the configuration of the rf unit for debugging
   
-  printf("\n\rRF24/examples/Transfer Rates/\n\r");
-  printf("*** PRESS 'T' to begin transmitting to the other node\n\r");
+  Serial.println(F("\n\rRF24/examples/Transfer/"));
+  Serial.println(F("*** PRESS 'T' to begin transmitting to the other node"));
   
   randomSeed(analogRead(0));              //Seed for random number generation
   
@@ -68,7 +66,7 @@ void loop(void){
     
     delay(2000);
     
-    printf("Initiating Basic Data Transfer\n\r");
+    Serial.println(F("Initiating Basic Data Transfer"));
     
     
     unsigned long cycles = 10000; //Change this to a higher or lower number. 
@@ -99,8 +97,8 @@ void loop(void){
    float numBytes = cycles*32;
    float rate = numBytes / (stopTime - startTime);
     
-   Serial.print("Transfer complete at "); Serial.print(rate); printf(" KB/s \n\r");
-   Serial.print(counter); Serial.print(" of "); Serial.print(cycles); printf(" Packets Failed to Send\n\r");
+   Serial.print("Transfer complete at "); Serial.print(rate); Serial.println(" KB/s");
+   Serial.print(counter); Serial.print(" of "); Serial.print(cycles); Serial.println(" Packets Failed to Send");
    counter = 0;   
     
    }
@@ -115,10 +113,10 @@ if(role == RX){
    if(millis() - rxTimer > 1000){
      rxTimer = millis();     
      unsigned long numBytes = counter*32;
-     Serial.print("Rate: ");
+     Serial.print(F("Rate: "));
      //Prevent dividing into 0, which will cause issues over a period of time
      Serial.println(numBytes > 0 ? numBytes/1000.0:0);
-     Serial.print("Payload Count: ");
+     Serial.print(F("Payload Count: "));
      Serial.println(counter);
      counter = 0;
    }
@@ -132,7 +130,7 @@ if(role == RX){
     char c = toupper(Serial.read());
     if ( c == 'T' && role == RX )
     {
-      printf("*** CHANGING TO TRANSMIT ROLE -- PRESS 'R' TO SWITCH BACK\n\r");
+      Serial.println(F("*** CHANGING TO TRANSMIT ROLE -- PRESS 'R' TO SWITCH BACK"));
       radio.openWritingPipe(pipes[1]);
       radio.openReadingPipe(1,pipes[0]);
       radio.stopListening();
@@ -143,7 +141,7 @@ if(role == RX){
       radio.openWritingPipe(pipes[0]);
       radio.openReadingPipe(1,pipes[1]); 
       radio.startListening();
-      printf("*** CHANGING TO RECEIVE ROLE -- PRESS 'T' TO SWITCH BACK\n\r");      
+      Serial.println(F("*** CHANGING TO RECEIVE ROLE -- PRESS 'T' TO SWITCH BACK"));
       role = RX;                // Become the primary receiver (pong back)
     }
   }

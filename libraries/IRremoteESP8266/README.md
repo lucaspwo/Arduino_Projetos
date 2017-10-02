@@ -4,9 +4,18 @@
 
 This library enables you to **send and receive** infra-red signals on an ESP8266 using Arduino framework (https://github.com/esp8266/Arduino)
 
-## v2.0.0 Now Available
-Version 2.0 of the library is now available. This is a large change to existing versions. You will need to change your pre-v2.0 code slightly to work with this version. You can read more about the changes on our [wiki](https://github.com/markszabo/IRremoteESP8266/wiki/Upgrading-to-v2.0) page.
+## v2.2 Now Available
+Version 2.2 of the library is now available. This is a significant internal change to existing versions.
+
+## Upgrading from versions prior to v2.0
+You will need to change your pre-v2.0 code slightly to work with post-v2.0 versions of the library. You can read more about the changes on our [wiki](https://github.com/markszabo/IRremoteESP8266/wiki/Upgrading-to-v2.0) page.
 Please [report an issue](https://github.com/markszabo/IRremoteESP8266/issues/new) if you find any problems with the documentation or the library itself.
+
+## Troubleshooting
+Before reporting an issue or asking for help, please try to follow our [Troubleshooting Guide](https://github.com/markszabo/IRremoteESP8266/wiki/Troubleshooting-Guide) first.
+
+## Frequently Asked Questions
+Some common answers to common questions and problems can be found on our [F.A.Q. wiki page](https://github.com/markszabo/IRremoteESP8266/wiki/Frequently-Asked-Questions).
 
 ## History
 This library was originally based on Ken Shirriff's work (https://github.com/shirriff/Arduino-IRremote/)
@@ -36,20 +45,19 @@ The [Unit Tests](https://en.wikipedia.org/wiki/Unit_testing) under the test/ dir
 This allows execution under Travis and on the developer's machine.
 We can do this from v2.0 of the library onwards, as everything now uses c98-style type definitions.
 e.g. uint16_t etc.
-Any Arduino/ESP8266 specific code needs to disabling using the following lines:
+Any Arduino/ESP8266 specific code needs to be disabled using something similar to the following lines:
 ```
 #ifndef UNIT_TEST
 <Arduino specific code ...>
 #endif
 ```
 
-This is not a perfect situation as we can not obvious emulate hardware specific features and differences. e.g. Interrupts, GPIOs, CPU instruction timing etc, etc.
+This is not a perfect situation as we can not obviously emulate hardware specific features and differences. e.g. Interrupts, GPIOs, CPU instruction timing etc, etc.
 
 If you want to run all the tests yourself, try the following:
 ```
 $ cd test
-$ make
-$ for UNITTEST in *_test; do if [ -x "./${UNITTEST}" ]; then ./${UNITTEST}; fi; done
+$ make run
 ```
 
 ## Contributing

@@ -60,13 +60,17 @@ void IRsend::ledOff() {
 //
 // Args:
 //   freq: Frequency in Hz.
+//   use_offset: Should we use the calculated offset or not?
 // Returns:
 //   nr. of uSeconds.
-uint32_t IRsend::calcUSecPeriod(uint32_t hz) {
+uint32_t IRsend::calcUSecPeriod(uint32_t hz, bool use_offset) {
   if (hz == 0) hz = 1;  // Avoid Zero hz. Divide by Zero is nasty.
   uint32_t period = (1000000UL + hz/2) / hz;  // The equiv of round(1000000/hz).
   // Apply the offset and ensure we don't result in a <= 0 value.
-  return std::max((uint32_t) 1, period + periodOffset);
+  if (use_offset)
+    return std::max((uint32_t) 1, period + periodOffset);
+  else
+    return std::max((uint32_t) 1, period);
 }
 
 // Set the output frequency modulation and duty cycle.
@@ -176,7 +180,7 @@ void IRsend::calibrate(uint16_t hz) {
   IRtimer usecTimer = IRtimer();  // Start a timer *just* before we do the call.
   uint16_t pulses = mark(UINT16_MAX);  // Generate a PWM of 65,535 us. (Max.)
   uint32_t timeTaken = usecTimer.elapsed();  // Record the time it took.
-  // While it shouldn't be neccesary, assume at least 1 pulse, to avoid a
+  // While it shouldn't be necessary, assume at least 1 pulse, to avoid a
   // divide by 0 situation.
   pulses = std::max(pulses, (uint16_t) 1U);
   uint32_t calcPeriod = calcUSecPeriod(hz);  // e.g. @38kHz it should be 26us.

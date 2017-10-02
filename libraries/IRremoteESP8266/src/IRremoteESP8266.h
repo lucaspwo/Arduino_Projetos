@@ -20,6 +20,7 @@
           (from https://github.com/z3t0/Arduino-IRremote/blob/master/ir_Denon.cpp)
  * Kelvinator A/C and Sherwood added by crankyoldgit
  * Mitsubishi (TV) sending added by crankyoldgit
+ * Pronto code sending added by crankyoldgit
  * Mitsubishi A/C added by crankyoldgit
  *     (derived from https://github.com/r45635/HVAC-IR-Control)
  * DISH decode by marcosamarinho
@@ -30,7 +31,8 @@
  *
  *  Updated by sillyfrog for Daikin, adopted from
  * (https://github.com/mharizanov/Daikin-AC-remote-control-over-the-Internet/)
- *
+ * Fujitsu A/C code added by jonnygraham
+ * Trotec AC code by stufisher
  *  GPL license, all text above must be included in any redistribution
  ****************************************************/
 
@@ -43,6 +45,8 @@
 #include <iostream>
 #endif
 
+// Library Version
+#define _IRREMOTEESP8266_VERSION_ "2.2.0"
 // Supported IR protocols
 // Each protocol you include costs memory and, during decode, costs time
 // Disable (set to false) all the protocols you do not need/want!
@@ -104,6 +108,9 @@
 #define DECODE_MITSUBISHI_AC false  // Not written.
 #define SEND_MITSUBISHI_AC   true
 
+#define DECODE_FUJITSU_AC false  // Not written.
+#define SEND_FUJITSU_AC   true
+
 #define DECODE_DAIKIN        false  // Not finished.
 #define SEND_DAIKIN          true
 
@@ -115,6 +122,16 @@
 
 #define DECODE_GREE          false  // Not written.
 #define SEND_GREE            true
+
+#define DECODE_PRONTO        false  // Not written.
+#define SEND_PRONTO          true
+
+#define DECODE_ARGO          false  // Not written.
+#define SEND_ARGO            true
+
+#define DECODE_TROTEC        false  // Not implemented.
+#define SEND_TROTEC          true
+
 /*
  * Always add to the end of the list and should never remove entries
  * or change order. Projects may save the type number for later usage
@@ -146,7 +163,11 @@ enum decode_type_t {
   RCMM,
   SANYO_LC7461,
   RC5X,
-  GREE
+  GREE,
+  PRONTO,
+  NEC_LIKE,
+  ARGO,
+  TROTEC
 };
 
 // Message lengths & required repeat values
@@ -171,9 +192,11 @@ enum decode_type_t {
 #define MITSUBISHI_MIN_REPEAT        1U  // Based on marcosamarinho's code.
 #define MITSUBISHI_AC_STATE_LENGTH  18U
 #define MITSUBISHI_AC_MIN_REPEAT     1U
+#define FUJITSU_AC_MIN_REPEAT        0U
 #define NEC_BITS                    32U
 #define PANASONIC_BITS              48U
 #define PANASONIC_MANUFACTURER   0x4004ULL
+#define PRONTO_MIN_LENGTH            6U
 #define RC5_RAW_BITS                14U
 #define RC5_BITS      RC5_RAW_BITS - 2U
 #define RC5X_BITS     RC5_RAW_BITS - 1U
@@ -196,7 +219,9 @@ enum decode_type_t {
 #define SONY_20_BITS                20U
 #define SONY_MIN_BITS      SONY_12_BITS
 #define SONY_MIN_REPEAT              2U
+#define TROTEC_COMMAND_LENGTH        9U
 #define WHYNTER_BITS                32U
+#define ARGO_COMMAND_LENGTH         12U
 
 // Turn on Debugging information by uncommenting the following line.
 // #define DEBUG 1

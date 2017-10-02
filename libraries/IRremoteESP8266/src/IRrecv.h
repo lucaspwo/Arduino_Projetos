@@ -18,10 +18,11 @@
 #define HEADER         2U  // Usual nr. of header entries.
 #define FOOTER         2U  // Usual nr. of footer (stop bits) entries.
 #define OFFSET_START   1U  // Usual rawbuf entry to start processing from.
+#define MS_TO_USEC(x)  (x * 1000U)  // Convert milli-Seconds to micro-Seconds.
 // Marks tend to be 100us too long, and spaces 100us too short
 // when received due to sensor lag.
-#define MARK_EXCESS  100U
-#define RAWBUF       100U  // Length of raw duration buffer
+#define MARK_EXCESS   50U
+#define RAWBUF       100U  // Default length of raw capture buffer
 #define REPEAT UINT64_MAX
 // receiver states
 #define STATE_IDLE     2U
@@ -29,8 +30,17 @@
 #define STATE_SPACE    4U
 #define STATE_STOP     5U
 #define TOLERANCE     25U  // default percent tolerance in measurements
-#define USECPERTICK   50U  // microseconds per clock interrupt tick
-#define TIMEOUT_MS    15U  // How long before we give up wait for more data.
+#define RAWTICK        2U  // Capture tick to uSec factor.
+// How long (ms) before we give up wait for more data?
+// Don't exceed MAX_TIMEOUT_MS without a good reason.
+// That is the capture buffers maximum value size. (UINT16_MAX / RAWTICK)
+// Typically messages/protocols tend to repeat around the 100ms timeframe,
+// thus we should timeout before that to give us some time to try to decode
+// before we need to start capturing a possible new message.
+// Typically 15ms suits most applications. However, some protocols demand a
+// higher value. e.g. 90ms for XMP-1 and some aircon units.
+#define TIMEOUT_MS    15U  // In MilliSeconds.
+#define MAX_TIMEOUT_MS (RAWTICK * UINT16_MAX / MS_TO_USEC(1))
 
 // Use FNV hash algorithm: http://isthe.com/chongo/tech/comp/fnv/#FNV-param
 #define FNV_PRIME_32 16777619UL
@@ -42,12 +52,21 @@ typedef struct {
   uint8_t recvpin;              // pin for IR data from detector
   uint8_t rcvstate;             // state machine
   uint16_t timer;               // state timer, counts 50uS ticks.
-  uint16_t rawbuf[RAWBUF];      // raw data
+  uint16_t bufsize;             // max. nr. of entries in the capture buffer.
+  uint16_t *rawbuf;             // raw data
   // uint16_t is used for rawlen as it saves 3 bytes of iram in the interrupt
   // handler. Don't ask why, I don't know. It just does.
   uint16_t rawlen;              // counter of entries in rawbuf.
   uint8_t overflow;             // Buffer overflow indicator.
+  uint8_t timeout;              // Nr. of milliSeconds before we give up.
 } irparams_t;
+
+// results from a data match
+typedef struct {
+  bool success;  // Was the match successful?
+  uint64_t data;  // The data found.
+  uint16_t used;  // How many buffer positions were used.
+} match_result_t;
 
 // Classes
 
@@ -68,29 +87,37 @@ class decode_results {
 // main class for receiving IR
 class IRrecv {
  public:
-  explicit IRrecv(uint16_t recvpin);
+  explicit IRrecv(uint16_t recvpin, uint16_t bufsize = RAWBUF,
+                  uint8_t timeout = TIMEOUT_MS,
+                  bool save_buffer = false);  // Constructor
+  ~IRrecv();  // Destructor
   bool decode(decode_results *results, irparams_t *save = NULL);
   void enableIRIn();
   void disableIRIn();
   void resume();
+  uint16_t getBufSize();
 
 #ifndef UNIT_TEST
 
  private:
 #endif
+  irparams_t *irparams_save;
   // These are called by decode
-  void copyIrParams(irparams_t *dest);
+  void copyIrParams(volatile irparams_t *src, irparams_t *dst);
   int16_t compare(uint16_t oldval, uint16_t newval);
   uint32_t ticksLow(uint32_t usecs, uint8_t tolerance = TOLERANCE);
   uint32_t ticksHigh(uint32_t usecs, uint8_t tolerance = TOLERANCE);
-  bool match(uint32_t measured_ticks, uint32_t desired_us,
+  bool match(uint32_t measured, uint32_t desired,
              uint8_t tolerance = TOLERANCE);
-  bool matchAtLeast(uint32_t measured_ticks, uint32_t desired_us,
+  bool matchAtLeast(uint32_t measured, uint32_t desired,
                     uint8_t tolerance = TOLERANCE);
-  bool matchMark(uint32_t measured_ticks, uint32_t desired_us,
+  bool matchMark(uint32_t measured, uint32_t desired,
                  uint8_t tolerance = TOLERANCE, int16_t excess = MARK_EXCESS);
-  bool matchSpace(uint32_t measured_ticks, uint32_t desired_us,
+  bool matchSpace(uint32_t measured, uint32_t desired,
                   uint8_t tolerance = TOLERANCE, int16_t excess = MARK_EXCESS);
+  match_result_t matchData(volatile uint16_t *data_ptr, uint16_t nbits,
+                           uint16_t onemark, uint32_t onespace,
+                           uint16_t zeromark, uint32_t zerospace);
   bool decodeHash(decode_results *results);
 #if (DECODE_NEC || DECODE_SHERWOOD || DECODE_AIWA_RC_T501 || SEND_SANYO)
   bool decodeNEC(decode_results *results, uint16_t nbits = NEC_BITS,

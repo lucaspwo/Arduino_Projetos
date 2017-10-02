@@ -7,6 +7,7 @@
 #define __STDC_LIMIT_MACROS
 #include <stdint.h>
 #include <algorithm>
+#include "IRrecv.h"
 
 // Reverse the order of the requested least significant nr. of bits.
 // Args:

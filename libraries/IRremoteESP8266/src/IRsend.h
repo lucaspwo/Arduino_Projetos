@@ -140,6 +140,11 @@ class IRsend {
                         uint16_t nbytes = MITSUBISHI_AC_STATE_LENGTH,
                         uint16_t repeat = MITSUBISHI_AC_MIN_REPEAT);
 #endif
+#if SEND_FUJITSU_AC
+  void sendFujitsuAC(unsigned char data[],
+                     uint16_t nbytes,
+                     uint16_t repeat = FUJITSU_AC_MIN_REPEAT);
+#endif
 #if SEND_GLOBALCACHE
   void sendGC(uint16_t buf[], uint16_t len);
 #endif
@@ -162,6 +167,20 @@ class IRsend {
   void sendGree(uint8_t data[], uint16_t nbytes = GREE_STATE_LENGTH,
                 uint16_t repeat = 0);
 #endif
+#if SEND_PRONTO
+  void sendPronto(uint16_t data[], uint16_t len, uint16_t repeat = 0);
+#endif
+#if SEND_ARGO
+  void sendArgo(unsigned char data[],
+                uint16_t nbytes = ARGO_COMMAND_LENGTH,
+                uint16_t repeat = 0);
+#endif
+
+#if SEND_TROTEC
+  void sendTrotec(unsigned char data[],
+                  uint16_t nbytes = TROTEC_COMMAND_LENGTH,
+                  uint16_t repeat = 0);
+#endif
 
  protected:
 #ifdef UNIT_TEST
@@ -181,7 +200,7 @@ class IRsend {
   uint16_t IRpin;
   int8_t periodOffset;
   void ledOff();
-  uint32_t calcUSecPeriod(uint32_t hz);
+  uint32_t calcUSecPeriod(uint32_t hz, bool use_offset = true);
 };
 
 #endif  // IRSEND_H_

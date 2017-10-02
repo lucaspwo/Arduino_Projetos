@@ -29,6 +29,7 @@ extern "C" {
 static ETSTimer timer;
 #endif
 volatile irparams_t irparams;
+irparams_t *irparams_save;  // A copy of the interrupt state while decoding.
 
 #ifndef UNIT_TEST
 static void ICACHE_RAM_ATTR read_timeout(void *arg __attribute__((unused))) {
@@ -54,7 +55,7 @@ static void ICACHE_RAM_ATTR gpio_intr() {
   // N.B. It saves about 13 bytes of IRAM.
   uint16_t rawlen = irparams.rawlen;
 
-  if (rawlen >= RAWBUF) {
+  if (rawlen >= irparams.bufsize) {
     irparams.overflow = true;
     irparams.rcvstate = STATE_STOP;
   }
@@ -67,21 +68,68 @@ static void ICACHE_RAM_ATTR gpio_intr() {
     irparams.rawbuf[rawlen] = 1;
   } else {
     if (now < start)
-      irparams.rawbuf[rawlen] = (0xFFFFFFFF - start + now) / USECPERTICK + 1;
+      irparams.rawbuf[rawlen] = (UINT32_MAX - start + now) / RAWTICK;
     else
-      irparams.rawbuf[rawlen] = (now - start) / USECPERTICK + 1;
+      irparams.rawbuf[rawlen] = (now - start) / RAWTICK;
   }
   irparams.rawlen++;
 
   start = now;
   #define ONCE 0
-  os_timer_arm(&timer, TIMEOUT_MS, ONCE);
+  os_timer_arm(&timer, irparams.timeout, ONCE);
 }
 #endif  // UNIT_TEST
 
 // Start of IRrecv class -------------------
-IRrecv::IRrecv(uint16_t recvpin) {
+
+// Class constructor
+// Args:
+//   recvpin: GPIO pin the IR receiver module's data pin is connected to.
+//   bufsize: Nr. of entries to have in the capture buffer. (Default: RAWBUF)
+//   timeout: Nr. of milli-Seconds of no signal before we stop capturing data.
+//            (Default: TIMEOUT_MS)
+//   save_buffer:  Use a second (save) buffer to decode from. (Def: false)
+// Returns:
+//   A IRrecv class object.
+IRrecv::IRrecv(uint16_t recvpin, uint16_t bufsize, uint8_t timeout,
+               bool save_buffer) {
   irparams.recvpin = recvpin;
+  irparams.bufsize = bufsize;
+  // Ensure we are going to be able to store all possible values in the
+  // capture buffer.
+  irparams.timeout = std::min(timeout, (uint8_t) MAX_TIMEOUT_MS);
+  irparams.rawbuf = new uint16_t[bufsize];
+  if (irparams.rawbuf == NULL) {
+    DPRINTLN("Could not allocate memory for the primary IR buffer.\n"
+             "Try a smaller size for CAPTURE_BUFFER_SIZE.\nRebooting!");
+#ifndef UNIT_TEST
+    ESP.restart();  // Mem alloc failure. Reboot.
+#endif
+  }
+  // If we have been asked to use a save buffer (for decoding), then create one.
+  if (save_buffer) {
+    irparams_save = new irparams_t;
+    irparams_save->rawbuf = new uint16_t[bufsize];
+    // Check we allocated the memory successfully.
+    if (irparams_save->rawbuf == NULL) {
+      DPRINTLN("Could not allocate memory for the second IR buffer.\n"
+               "Try a smaller size for CAPTURE_BUFFER_SIZE.\nRebooting!");
+#ifndef UNIT_TEST
+      ESP.restart();  // Mem alloc failure. Reboot.
+#endif
+    }
+  } else {
+    irparams_save = NULL;
+  }
+}
+
+// Class destructor
+IRrecv::~IRrecv(void) {
+  delete [] irparams.rawbuf;
+  if (irparams_save != NULL) {
+    delete [] irparams_save->rawbuf;
+    delete irparams_save;
+  }
 }
 
 // initialization
@@ -113,21 +161,41 @@ void IRrecv::resume() {
   irparams.overflow = false;
 }
 
-// Make a copy of the interrupt state/data.
+// Make a copy of the interrupt state & buffer data.
 // Needed because irparams is marked as volatile, thus memcpy() isn't allowed.
 // Only call this when you know the interrupt handlers won't modify anything.
 // i.e. In STATE_STOP.
 //
 // Args:
-//   dest: Pointer to an irparams_t structure to copy to.
-void IRrecv::copyIrParams(irparams_t *dest) {
-  // Typecast src and dest addresses to (char *)
-  char *csrc = (char *) (&irparams);  // NOLINT(readability/casting)
-  char *cdest = (char *) dest;  // NOLINT(readability/casting)
+//   src: Pointer to an irparams_t structure to copy from.
+//   dst: Pointer to an irparams_t structure to copy to.
+void IRrecv::copyIrParams(volatile irparams_t *src, irparams_t *dst) {
+  // Typecast src and dst addresses to (char *)
+  char *csrc = (char *) src;  // NOLINT(readability/casting)
+  char *cdst = (char *) dst;  // NOLINT(readability/casting)
 
-  // Copy contents of src[] to dest[]
-  for (uint16_t i=0; i < sizeof(irparams_t); i++)
-    cdest[i] = csrc[i];
+  // Save the pointer to the destination's rawbuf so we don't lose it as
+  // the for-loop/copy after this will overwrite it with src's rawbuf pointer.
+  // This isn't immediately obvious due to typecasting/different variable names.
+  uint16_t *dst_rawbuf_ptr;
+  dst_rawbuf_ptr = dst->rawbuf;
+
+  // Copy contents of src[] to dst[]
+  for (uint16_t i = 0; i < sizeof(irparams_t); i++)
+    cdst[i] = csrc[i];
+
+  // Restore the buffer pointer
+  dst->rawbuf = dst_rawbuf_ptr;
+
+  // Copy the rawbuf
+  for (uint16_t i = 0; i < dst->bufsize; i++)
+    dst->rawbuf[i] = src->rawbuf[i];
+}
+
+// Obtain the maximum number of entries possible in the capture buffer.
+// i.e. It's size.
+uint16_t IRrecv::getBufSize() {
+  return irparams.bufsize;
 }
 
 // Decodes the received IR message.
@@ -149,7 +217,21 @@ bool IRrecv::decode(decode_results *results, irparams_t *save) {
     return false;
 #endif
 
+  // Clear the entry we are currently pointing to when we got the timeout.
+  // i.e. Stopped collecting IR data.
+  // It's junk as we never wrote an entry to it and can only confuse decoding.
+  // This is done here rather than logically the best place in read_timeout()
+  // as it saves a few bytes of ICACHE_RAM as that routine is bound to an
+  // interrupt. decode() is not stored in ICACHE_RAM.
+  // Another better option would be to zero the entire irparams.rawbuf[] on
+  // resume() but that is a much more expensive operation compare to this.
+  irparams.rawbuf[irparams.rawlen] = 0;
+
   bool resumed = false;  // Flag indicating if we have resumed.
+
+  // If we were requested to use a save buffer previously, do so.
+  if (save == NULL)
+    save = irparams_save;
 
   if (save == NULL) {
     // We haven't been asked to copy it so use the existing memory.
@@ -159,7 +241,7 @@ bool IRrecv::decode(decode_results *results, irparams_t *save) {
     results->overflow = irparams.overflow;
 #endif
   } else {
-    copyIrParams(save);  // Duplicate the interrupt's memory.
+    copyIrParams(&irparams, save);  // Duplicate the interrupt's memory.
     resume();  // It's now safe to rearm. The IR message won't be overridden.
     resumed = true;
     // Point the results at the saved copy.
@@ -224,7 +306,7 @@ bool IRrecv::decode(decode_results *results, irparams_t *save) {
     return true;
 #endif
 #if DECODE_DENON
-  // Denon needs to preceed Panasonic as it is a special case of Panasonic.
+  // Denon needs to precede Panasonic as it is a special case of Panasonic.
 #ifdef DEBUG
   DPRINTLN("Attempting Denon decode");
 #endif
@@ -287,6 +369,18 @@ bool IRrecv::decode(decode_results *results, irparams_t *save) {
     return true;
 #endif
 */
+#if DECODE_NEC
+  // Some devices send NEC-like codes that don't follow the true NEC spec.
+  // This should detect those. e.g. Apple TV remote etc.
+  // This needs to be done after all other codes that use strict and some
+  // other protocols that are NEC-like as well, as turning off strict may
+  // cause this to match other valid protocols.
+  DPRINTLN("Attempting NEC (non-stict) decode");
+  if (decodeNEC(results, NEC_BITS, false)) {
+    results->decode_type = NEC_LIKE;
+    return true;
+  }
+#endif
   // decodeHash returns a hash on any input.
   // Thus, it needs to be last in the list.
   // If you add any decodes, add them before this.
@@ -308,8 +402,7 @@ bool IRrecv::decode(decode_results *results, irparams_t *save) {
 //   Nr. of ticks.
 uint32_t IRrecv::ticksLow(uint32_t usecs, uint8_t tolerance) {
   // max() used to ensure the result can't drop below 0 before the cast.
-  return((uint32_t) std::max((int32_t) (
-      usecs * (1.0 - tolerance/100.0) / USECPERTICK), 0));
+  return((uint32_t) std::max((int32_t) (usecs * (1.0 - tolerance / 100.0)), 0));
 }
 
 // Calculate the upper bound of the nr. of ticks.
@@ -320,104 +413,110 @@ uint32_t IRrecv::ticksLow(uint32_t usecs, uint8_t tolerance) {
 // Returns:
 //   Nr. of ticks.
 uint32_t IRrecv::ticksHigh(uint32_t usecs, uint8_t tolerance) {
-  return((uint32_t) usecs * (1.0 + tolerance/100.0) / USECPERTICK + 1);
+  return((uint32_t) (usecs * (1.0 + tolerance / 100.0)) + 1);
 }
 
-// Check if we match a pulse(measured_ticks) with the desired_us within
+// Check if we match a pulse(measured) with the desired within
 // +/-tolerance percent.
 //
 // Args:
-//   measured_ticks:  The recorded period of the signal pulse.
-//   desired_us:  The expected period (in useconds) we are matching against.
+//   measured:  The recorded period of the signal pulse.
+//   desired:  The expected period (in useconds) we are matching against.
 //   tolerance:  A percentage expressed as an integer. e.g. 10 is 10%.
 //
 // Returns:
 //   Boolean: true if it matches, false if it doesn't.
-bool IRrecv::match(uint32_t measured_ticks, uint32_t desired_us,
+bool IRrecv::match(uint32_t measured, uint32_t desired,
                    uint8_t tolerance) {
+  measured *= RAWTICK;  // Convert to uSecs.
   DPRINT("Matching: ");
-  DPRINT(ticksLow(desired_us, tolerance));
+  DPRINT(ticksLow(desired, tolerance));
   DPRINT(" <= ");
-  DPRINT(measured_ticks);
+  DPRINT(measured);
   DPRINT(" <= ");
-  DPRINTLN(ticksHigh(desired_us, tolerance));
-  return (measured_ticks >= ticksLow(desired_us, tolerance) &&
-          measured_ticks <= ticksHigh(desired_us, tolerance));
+  DPRINTLN(ticksHigh(desired, tolerance));
+  return (measured >= ticksLow(desired, tolerance) &&
+          measured <= ticksHigh(desired, tolerance));
 }
 
 
-// Check if we match a pulse(measured_ticks) of at least desired_us within
+// Check if we match a pulse(measured) of at least desired within
 // +/-tolerance percent.
 //
 // Args:
-//   measured_ticks:  The recorded period of the signal pulse.
-//   desired_us:  The expected period (in useconds) we are matching against.
+//   measured:  The recorded period of the signal pulse.
+//   desired:  The expected period (in useconds) we are matching against.
 //   tolerance:  A percentage expressed as an integer. e.g. 10 is 10%.
 //
 // Returns:
 //   Boolean: true if it matches, false if it doesn't.
-bool IRrecv::matchAtLeast(uint32_t measured_ticks, uint32_t desired_us,
+bool IRrecv::matchAtLeast(uint32_t measured, uint32_t desired,
                           uint8_t tolerance) {
+  measured *= RAWTICK;  // Convert to uSecs.
   DPRINT("Matching ATLEAST ");
-  DPRINT(measured_ticks * USECPERTICK);
+  DPRINT(measured);
   DPRINT(" vs ");
-  DPRINT(desired_us);
+  DPRINT(desired);
   DPRINT(". Matching: ");
-  DPRINT(measured_ticks);
+  DPRINT(measured);
   DPRINT(" >= ");
-  DPRINT(ticksLow(std::min(desired_us, TIMEOUT_MS * 1000), tolerance));
+  DPRINT(ticksLow(std::min(desired, MS_TO_USEC(irparams.timeout)), tolerance));
   DPRINT(" [min(");
-  DPRINT(ticksLow(desired_us, tolerance));
+  DPRINT(ticksLow(desired, tolerance));
   DPRINT(", ");
-  DPRINT(ticksLow(TIMEOUT_MS * 1000, tolerance));
+  DPRINT(ticksLow(MS_TO_USEC(irparams.timeout), tolerance));
   DPRINTLN(")]");
   // We really should never get a value of 0, except as the last value
   // in the buffer. If that is the case, then assume infinity and return true.
-  if (measured_ticks == 0) return true;
-  return measured_ticks >= ticksLow(std::min(desired_us, TIMEOUT_MS * 1000),
-                                    tolerance);
+  if (measured == 0) return true;
+  return measured >= ticksLow(std::min(desired, MS_TO_USEC(irparams.timeout)),
+                              tolerance);
 }
 
-// Check if we match a mark signal(measured_ticks) with the desired_us within
+// Check if we match a mark signal(measured) with the desired within
 // +/-tolerance percent, after an expected is excess is added.
 //
 // Args:
-//   measured_ticks:  The recorded period of the signal pulse.
-//   desired_us:  The expected period (in useconds) we are matching against.
+//   measured:  The recorded period of the signal pulse.
+//   desired:  The expected period (in useconds) we are matching against.
 //   tolerance:  A percentage expressed as an integer. e.g. 10 is 10%.
 //   excess:  Nr. of useconds.
 //
 // Returns:
 //   Boolean: true if it matches, false if it doesn't.
-bool IRrecv::matchMark(uint32_t measured_ticks, uint32_t desired_us,
+bool IRrecv::matchMark(uint32_t measured, uint32_t desired,
                        uint8_t tolerance, int16_t excess) {
   DPRINT("Matching MARK ");
-  DPRINT(measured_ticks * USECPERTICK);
+  DPRINT(measured * RAWTICK);
   DPRINT(" vs ");
-  DPRINT(desired_us);
+  DPRINT(desired);
+  DPRINT(" + ");
+  DPRINT(excess);
   DPRINT(". ");
-  return match(measured_ticks, desired_us + excess, tolerance);
+  return match(measured, desired + excess, tolerance);
 }
 
-// Check if we match a space signal(measured_ticks) with the desired_us within
+// Check if we match a space signal(measured) with the desired within
 // +/-tolerance percent, after an expected is excess is removed.
 //
 // Args:
-//   measured_ticks:  The recorded period of the signal pulse.
-//   desired_us:  The expected period (in useconds) we are matching against.
+//   measured:  The recorded period of the signal pulse.
+//   desired:  The expected period (in useconds) we are matching against.
 //   tolerance:  A percentage expressed as an integer. e.g. 10 is 10%.
 //   excess:  Nr. of useconds.
 //
 // Returns:
 //   Boolean: true if it matches, false if it doesn't.
-bool IRrecv::matchSpace(uint32_t measured_ticks, uint32_t desired_us,
+bool IRrecv::matchSpace(uint32_t measured, uint32_t desired,
                         uint8_t tolerance, int16_t excess) {
   DPRINT("Matching SPACE ");
-  DPRINT(measured_ticks * USECPERTICK);
+  DPRINT(measured * RAWTICK);
   DPRINT(" vs ");
-  DPRINT(desired_us);
+  DPRINT(desired);
+  DPRINT(" - ");
+  DPRINT(excess);
   DPRINT(". ");
-  return match(measured_ticks, desired_us - excess, tolerance);
+  return match(measured, desired - excess, tolerance);
 }
 
 /* -----------------------------------------------------------------------
@@ -471,4 +570,58 @@ bool IRrecv::decodeHash(decode_results *results) {
   results->decode_type = UNKNOWN;
   return true;
 }
+
+// Match & decode the typical data section of an IR message.
+// The data value constructed as the Most Significant Bit first.
+//
+// Args:
+//   data_ptr: A pointer to where we are at in the capture buffer.
+//   nbits:     Nr. of data bits we expect.
+//   onemark:   Nr. of uSeconds in an expected mark signal for a '1' bit.
+//   onespace:  Nr. of uSeconds in an expected space signal for a '1' bit.
+//   zeromark:  Nr. of uSeconds in an expected mark signal for a '0' bit.
+//   zerospace: Nr. of uSeconds in an expected space signal for a '0' bit.
+// Returns:
+//  A match_result_t structure containing the success (or not), the data value,
+//  and how many buffer entries were used.
+match_result_t IRrecv::matchData(volatile uint16_t *data_ptr, uint16_t nbits,
+                                 uint16_t onemark, uint32_t onespace,
+                                 uint16_t zeromark, uint32_t zerospace) {
+  match_result_t result;
+  result.success = false;
+  result.data = 0;
+  if (onemark == zeromark) {  // Is this space encoded data format?
+    for (result.used = 0;
+         result.used < nbits * 2;
+         result.used += 2, data_ptr++) {
+      if (!matchMark(*data_ptr, onemark))
+        return result;  // Fail
+      data_ptr++;
+      if (matchSpace(*data_ptr, onespace))
+        result.data = (result.data << 1) | 1;
+      else if (matchSpace(*data_ptr, zerospace))
+        result.data <<= 1;
+      else
+        return result;  // Fail
+    }
+    result.success = true;
+  } else if (onespace == zerospace) {  // Is this mark encoded data format?
+    for (result.used = 0;
+         result.used < nbits * 2;
+         result.used += 2, data_ptr++) {
+      if (matchMark(*data_ptr, onemark))
+        result.data = (result.data << 1) | 1;
+      else if (matchMark(*data_ptr, zeromark))
+        result.data <<= 1;
+      else
+        return result;  // Fail
+      data_ptr++;
+      if (!matchSpace(*data_ptr, onespace))
+        return result;  // Fail
+    }
+    result.success = true;
+  }
+  return result;
+}
+
 // End of IRrecv class -------------------

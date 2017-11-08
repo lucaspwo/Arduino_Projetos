@@ -17,41 +17,54 @@
   This example code is in public domain.
 
  *************************************************************
-  This example runs directly on ESP32 chip.
 
-  Note: This requires ESP32 support package:
-    https://github.com/espressif/arduino-esp32
-
-  Please be sure to select the right ESP32 module
-  in the Tools -> Board menu!
-
-  Change WiFi ssid, pass, and Blynk auth token to run :)
-  Feel free to apply it to any other example. It's simple!
+  App project setup:
+    Time Input widget on V1.
  *************************************************************/
 
 /* Comment this out to disable prints and save space */
 #define BLYNK_PRINT Serial
 
 
-#include <WiFi.h>
-#include <WiFiClient.h>
-#include <BlynkSimpleEsp32.h>
+#include <SPI.h>
+#include <Ethernet.h>
+#include <BlynkSimpleEthernet.h>
 
 // You should get Auth Token in the Blynk App.
 // Go to the Project Settings (nut icon).
 char auth[] = "YourAuthToken";
-
-// Your WiFi credentials.
-// Set password to "" for open networks.
-char ssid[] = "YourNetworkName";
-char pass[] = "YourPassword";
 
 void setup()
 {
   // Debug console
   Serial.begin(9600);
 
-  Blynk.begin(auth, ssid, pass);
+  Blynk.begin(auth);
+}
+
+    //as soon as connected update TimeInput widget state
+BLYNK_CONNECTED() {
+    //seconds from the start of a day. 0 - min, 86399 - max
+    int startAt = 5 * 60; //00:05
+
+    //seconds from the start of a day. 0 - min, 86399 - max
+    int stopAt = (60 + 5) * 60; //01:05
+
+    //timezone
+    //full list of supported timezones could be found here
+    //https://www.mkyong.com/java/java-display-list-of-timezone-with-gmt/
+    char tz[] = "Europe/Kiev";
+
+    Blynk.virtualWrite(V1, startAt, stopAt, tz);
+
+    //you may also pass day
+    //char days[] = "1"; //Monday
+    //Blynk.virtualWrite(V1, startAt, stopAt, tz, days);
+
+    //or days
+    //char days[] = "1,2,3"; //Monday, Tuesday, Wednesday
+    //Blynk.virtualWrite(V1, startAt, stopAt, tz, days);
+
 }
 
 void loop()

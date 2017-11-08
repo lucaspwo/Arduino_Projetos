@@ -46,7 +46,7 @@
 #endif
 
 // Library Version
-#define _IRREMOTEESP8266_VERSION_ "2.2.0"
+#define _IRREMOTEESP8266_VERSION_ "2.2.1"
 // Supported IR protocols
 // Each protocol you include costs memory and, during decode, costs time
 // Disable (set to false) all the protocols you do not need/want!
@@ -132,6 +132,9 @@
 #define DECODE_TROTEC        false  // Not implemented.
 #define SEND_TROTEC          true
 
+#define DECODE_NIKAI     true
+#define SEND_NIKAI       true
+
 /*
  * Always add to the end of the list and should never remove entries
  * or change order. Projects may save the type number for later usage
@@ -164,10 +167,13 @@ enum decode_type_t {
   SANYO_LC7461,
   RC5X,
   GREE,
-  PRONTO,
+  PRONTO,  // Technically not a protocol, but an encoding.
   NEC_LIKE,
   ARGO,
-  TROTEC
+  TROTEC,
+  NIKAI,
+  RAW,  // Technically not a protocol, but an encoding.
+  GLOBALCACHE  // Technically not a protocol, but an encoding.
 };
 
 // Message lengths & required repeat values
@@ -222,6 +228,7 @@ enum decode_type_t {
 #define TROTEC_COMMAND_LENGTH        9U
 #define WHYNTER_BITS                32U
 #define ARGO_COMMAND_LENGTH         12U
+#define NIKAI_BITS                  24U
 
 // Turn on Debugging information by uncommenting the following line.
 // #define DEBUG 1

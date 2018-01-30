@@ -67,22 +67,12 @@
 //   https://github.com/marcosamarinho/IRremoteESP8266/blob/master/ir_Mitsubishi.cpp
 //   GlobalCache's Control Tower's Mitsubishi TV data.
 void IRsend::sendMitsubishi(uint64_t data, uint16_t nbits, uint16_t repeat) {
-  enableIROut(33);  // Set IR carrier frequency
-  IRtimer usecTimer = IRtimer();
-
-  for (uint16_t i = 0; i <= repeat; i++) {
-    usecTimer.reset();
-    // No header
-
-    // Data
-    sendData(MITSUBISHI_BIT_MARK, MITSUBISHI_ONE_SPACE,
-             MITSUBISHI_BIT_MARK, MITSUBISHI_ZERO_SPACE,
-             data, nbits, true);
-    // Footer
-    mark(MITSUBISHI_BIT_MARK);
-    space(std::max(MITSUBISHI_MIN_COMMAND_LENGTH - usecTimer.elapsed(),
-                   MITSUBISHI_MIN_GAP));
-  }
+  sendGeneric(0, 0,  // No Header
+              MITSUBISHI_BIT_MARK, MITSUBISHI_ONE_SPACE,
+              MITSUBISHI_BIT_MARK, MITSUBISHI_ZERO_SPACE,
+              MITSUBISHI_BIT_MARK, MITSUBISHI_MIN_GAP,
+              MITSUBISHI_MIN_COMMAND_LENGTH,
+              data, nbits, 33, true, repeat, 50);
 }
 #endif
 
@@ -170,23 +160,13 @@ void IRsend::sendMitsubishiAC(unsigned char data[], uint16_t nbytes,
   if (nbytes < MITSUBISHI_AC_STATE_LENGTH)
     return;  // Not enough bytes to send a proper message.
 
-  // Set IR carrier frequency
-  enableIROut(38);
-  // Mitsubishi AC remote sends the packet twice.
-  for (uint16_t r = 0; r <= repeat; r++) {
-    // Header
-    mark(MITSUBISHI_AC_HDR_MARK);
-    space(MITSUBISHI_AC_HDR_SPACE);
-    // Data
-    for (uint16_t i = 0; i < nbytes; i++)
-      sendData(MITSUBISHI_AC_BIT_MARK, MITSUBISHI_AC_ONE_SPACE,
-               MITSUBISHI_AC_BIT_MARK, MITSUBISHI_AC_ZERO_SPACE,
-               data[i], 8, false);
-    // Footer
-    mark(MITSUBISHI_AC_RPT_MARK);
-    space(MITSUBISHI_AC_RPT_SPACE);
-  }
+  sendGeneric(MITSUBISHI_AC_HDR_MARK, MITSUBISHI_AC_HDR_SPACE,
+              MITSUBISHI_AC_BIT_MARK, MITSUBISHI_AC_ONE_SPACE,
+              MITSUBISHI_AC_BIT_MARK, MITSUBISHI_AC_ZERO_SPACE,
+              MITSUBISHI_AC_RPT_MARK, MITSUBISHI_AC_RPT_SPACE,
+              data, nbytes, 38, false, repeat, 50);
 }
+#endif  // SEND_MITSUBISHI_AC
 
 // Code to emulate Mitsubishi A/C IR remote control unit.
 // Inspired and derived from the work done at:
@@ -232,11 +212,13 @@ void IRMitsubishiAC::begin() {
     _irsend.begin();
 }
 
+#if SEND_MITSUBISHI_AC
 // Send the current desired state to the IR LED.
 void IRMitsubishiAC::send() {
   checksum();   // Ensure correct checksum before sending.
   _irsend.sendMitsubishiAC(remote_state);
 }
+#endif  // SEND_MITSUBISHI_AC
 
 // Return a pointer to the internal state date of the remote.
 uint8_t* IRMitsubishiAC::getRaw() {
@@ -346,4 +328,3 @@ void IRMitsubishiAC::setVane(uint8_t mode) {
 uint8_t IRMitsubishiAC::getVane() {
   return ((remote_state[9] & 0b00111000) >> 3);
 }
-#endif

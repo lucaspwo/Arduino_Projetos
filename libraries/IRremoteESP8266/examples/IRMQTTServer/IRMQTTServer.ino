@@ -1,5 +1,5 @@
 /*
- * Send arbitary IR codes via a web server or MQTT.
+ * Send arbitrary IR codes via a web server or MQTT.
  * Copyright David Conran 2016
  * Version 0.3 Oct, 2017
  *
@@ -63,13 +63,17 @@
  *                        GlobalCache (31) & "40000,1,1,96,..." (Sony Vol Up)
  *   25,Rrepeats,hex_code_string  e.g. 25,R1,0000,006E,0022,0002,0155,00AA,0015,0040,0015,0040,0015,0015,0015,0015,0015,0015,0015,0015,0015,0015,0015,0040,0015,0040,0015,0015,0015,0040,0015,0015,0015,0015,0015,0015,0015,0040,0015,0015,0015,0015,0015,0040,0015,0040,0015,0015,0015,0015,0015,0015,0015,0015,0015,0015,0015,0040,0015,0015,0015,0015,0015,0040,0015,0040,0015,0040,0015,0040,0015,0040,0015,0640,0155,0055,0015,0E40
  *                               Pronto (25), 1 repeat, & "0000 006E 0022 0002 ..." (Sherwood Amp Tape Input)
- *   18,really_long_hexcode  e.g. 18,190B8050000000E0190B8070000010f0
+ *   ac_protocol_num,really_long_hexcode  e.g. 18,190B8050000000E0190B8070000010F0
  *                           Kelvinator (18) Air Con on, Low Fan, 25 deg etc.
+ *                           NOTE: Ensure you zero-pad to the correct number of
+ *                                 digits for the bit/byte size you want to send
+ *                                 as some A/C units have units have different
+ *                                 sized messages. e.g. Fujitsu A/C units.
  *   In short:
  *     No spaces after/before commas.
  *     Values are comma separated.
  *     The first value is always in Decimal.
- *     For simple protocols, the next value (hexcode) is always hexidecimal.
+ *     For simple protocols, the next value (hexcode) is always hexadecimal.
  *     The optional bit size is in decimal.
  *
  *   Unix command line usage example:
@@ -111,20 +115,21 @@
 #include <WiFiManager.h>
 #include <ESP8266mDNS.h>
 #include <IRremoteESP8266.h>
+#include <IRrecv.h>
 #include <IRsend.h>
 #include <IRutils.h>
 #ifdef MQTT_ENABLE
 // --------------------------------------------------------------------
 // * * * IMPORTANT * * *
 // You must change <PubSubClient.h> to have the following value.
-// #define MQTT_MAX_PACKET_SIZE 400
+// #define MQTT_MAX_PACKET_SIZE 512
 // --------------------------------------------------------------------
 #include <PubSubClient.h>
-#endif
+#endif  // MQTT_ENABLE
 #include <algorithm>
 #include <string>
 
-// Configuration paramters
+// Configuration parameters
 #define IR_LED 4  // GPIO the IR LED is connected to/controlled by. GPIO 4 = D2.
 #define HTTP_PORT 80  // The port the HTTP server is listening on.
 
@@ -140,7 +145,7 @@ const char* mqtt_password = "";
 #define MQTTprefix "ir_server"
 #define MQTTack MQTTprefix "/sent"  // Topic we send back acknowledgements on
 #define MQTTcommand MQTTprefix "/send"  // Topic we get new commands from.
-#endif
+#endif  // MQTT_ENABLE
 
 // HTML arguments we will parse for IR code information.
 #define argType "type"
@@ -157,9 +162,9 @@ WiFiClient espClient;
 WiFiManager wifiManager;
 
 uint16_t *codeArray;
-uint32_t lastReconnectAttempt = 0;  // MQTT last attemps reconnection number
+uint32_t lastReconnectAttempt = 0;  // MQTT last attempt reconnection number
 bool boot = true;
-bool ir_lock = false;  // Primative locking for gating the IR LED.
+bool ir_lock = false;  // Primitive locking for gating the IR LED.
 
 #ifdef MQTT_ENABLE
 // MQTT client parameters
@@ -168,13 +173,14 @@ PubSubClient mqtt_client(MQTT_SERVER, MQTT_PORT, callback, espClient);
 // Create a unique MQTT client id.
 const char* mqtt_clientid = String(MQTTprefix +
                                    String(ESP.getChipId(), HEX)).c_str();
-#endif
+#endif  // MQTT_ENABLE
 
 // Debug messages get sent to the serial port.
 void debug(String str) {
 #ifdef DEBUG
-  Serial.println(str);
-#endif
+  uint32_t now = millis();
+  Serial.printf("%07u.%03u: %s\n", now / 1000, now % 1000, str.c_str());
+#endif  // DEBUG
 }
 
 // Root web page with example usage etc.
@@ -183,6 +189,15 @@ void handleRoot() {
     "<html><head><title>IR MQTT server</title></head>"
     "<body>"
     "<center><h1>ESP8266 IR MQTT Server</h1></center>"
+    "<br><hr>"
+    "<h3>Connection details</h3>"
+    "<p>IP address: " + WiFi.localIP().toString() + "</p>"
+#ifdef MQTT_ENABLE
+    "<p>MQTT server: " MQTT_SERVER ":" + String(MQTT_PORT) + " ("+
+    (mqtt_client.connected() ? "Connected" : "Disconnected") + ")<br>"
+    "Command topic: " MQTTcommand "<br>"
+    "Acknowledgements topic: " MQTTack "</p>"
+#endif  // MQTT_ENABLE
     "<br><hr>"
     "<h3>Hardcoded examples</h3>"
     "<p><a href=\"ir?code=38000,1,69,341,171,21,64,21,64,21,21,21,21,21,21,21,"
@@ -217,6 +232,9 @@ void handleRoot() {
         "<option value='13'>Dish</option>"
         "<option value='6'>JVC</option>"
         "<option value='10'>LG</option>"
+        "<option value='36'>Lasertag</option>"
+        "<option value='35'>MagiQuest</option>"
+        "<option value='34'>Midea</option>"
         "<option value='12'>Mitsubishi</option>"
         "<option selected='selected' value='3'>NEC</option>"  // Default
         "<option value='29'>Nikai</option>"
@@ -251,6 +269,7 @@ void handleRoot() {
         "<option value='32'>32</option>"
         "<option value='36'>36</option>"
         "<option value='48'>48</option>"
+        "<option value='56'>56</option>"
       "</select>"
       " Repeats: <input type='number' name='repeats' min='0' max='99' value='0'"
         "size='2' maxlength='2'>"
@@ -295,11 +314,23 @@ void handleRoot() {
       " <input type='submit' value='Send Pronto'>"
     "</form>"
     "<br><hr>"
-    "<h3>Send a Kelvinator A/C IR message</h3><p>"
+    "<h3>Send an Air Conditioner IR message</h3><p>"
     "<form method='POST' action='/ir' enctype='multipart/form-data'>"
-      "<input type='hidden' name='type' value='18'>"
-      "State code: 0x<input type='text' name='code' size='32' maxlength='32'"
-      " value='190B8050000000E0190B8070000010f0'>"
+      "Type: "
+      "<select name='type'>"
+        "<option value='27'>Argo</option>"
+        "<option value='16'>Daikin</option>"
+        "<option value='33'>Fujitsu</option>"
+        "<option value='24'>Gree</option>"
+        "<option selected='selected' value='18'>Kelvinator</option>"  // Default
+        "<option value='20'>Mitsubishi</option>"
+        "<option value='32'>Toshiba</option>"
+        "<option value='28'>Trotec</option>"
+      "</select>"
+      " State code: 0x"
+      "<input type='text' name='code' size='" + String(STATE_SIZE_MAX * 2) +
+          "' maxlength='" + String(STATE_SIZE_MAX * 2) + "'"
+          " value='190B8050000000E0190B8070000010F0'>"
       " <input type='submit' value='Send A/C State'>"
     "</form>"
     "<br><hr>"
@@ -330,26 +361,139 @@ void handleReset() {
   delay(1000);
 }
 
-// Parse a Kelvinator A/C Hex String/code and send it.
-void parseStringAndSendKelv(const String str) {
-  // str should be a 32 digit hexidecimal string.
-  uint8_t offset = 0;
-  uint8_t codeArray[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+// Parse an Air Conditioner A/C Hex String/code and send it.
+// Args:
+//   irType: Nr. of the protocol we need to send.
+//   str: A hexadecimal string containing the state to be sent.
+void parseStringAndSendAirCon(const uint16_t irType, const String str) {
+  uint8_t strOffset = 0;
+  uint8_t state[STATE_SIZE_MAX] = {0};  // All array elements are set to 0.
+  uint16_t stateSize = 0;
+
   if (str.startsWith("0x") || str.startsWith("0X"))
-    offset = 2;
-  for (int i = 0; i < 32; i++) {
-    unsigned char c = tolower(str[i + offset]);
-    uint8_t entry = 0;
+    strOffset = 2;
+  // Calculate how many hexadecimal characters there are.
+  uint16_t inputLength = str.length() - strOffset;
+  if (inputLength == 0) {
+    debug("Zero length AirCon code encountered. Ignored.");
+    return;  // No input. Abort.
+  }
+
+  switch (irType) {  // Get the correct state size for the protocol.
+    case KELVINATOR:
+      stateSize = KELVINATOR_STATE_LENGTH;
+      break;
+    case TOSHIBA_AC:
+      stateSize = TOSHIBA_AC_STATE_LENGTH;
+      break;
+    case DAIKIN:
+      stateSize = DAIKIN_COMMAND_LENGTH;
+      break;
+    case MITSUBISHI_AC:
+      stateSize = MITSUBISHI_AC_STATE_LENGTH;
+      break;
+    case TROTEC:
+      stateSize = TROTEC_COMMAND_LENGTH;
+      break;
+    case ARGO:
+      stateSize = ARGO_COMMAND_LENGTH;
+      break;
+    case GREE:
+      stateSize = GREE_STATE_LENGTH;
+      break;
+    case FUJITSU_AC:
+      // Fujitsu has four distinct & different size states, so make a best guess
+      // which one we are being presented with based on the number of
+      // hexadecimal digits provided. i.e. Zero-pad if you need to to get
+      // the correct length/byte size.
+      stateSize = inputLength / 2;  // Every two hex chars is a byte.
+      // Use at least the minimum size.
+      stateSize = std::max(stateSize,
+                           (uint16_t) (FUJITSU_AC_STATE_LENGTH_SHORT - 1));
+      // If we think it isn't a "short" message.
+      if (stateSize > FUJITSU_AC_STATE_LENGTH_SHORT)
+        // Then it has to be at least the smaller version of the "normal" size.
+        stateSize = std::max(stateSize,
+                             (uint16_t) (FUJITSU_AC_STATE_LENGTH - 1));
+      // Lastly, it should never exceed the maximum "normal" size.
+      stateSize = std::min(stateSize, (uint16_t) FUJITSU_AC_STATE_LENGTH);
+      break;
+    default:  // Not a protocol we expected. Abort.
+      debug("Unexpected AirCon protocol detected. Ignoring.");
+      return;
+  }
+  if (inputLength > stateSize * 2) {
+    debug("AirCon code to large for the given protocol.");
+    return;
+  }
+
+  // Ptr to the least significant byte of the resulting state for this protocol.
+  uint8_t *statePtr = &state[stateSize - 1];
+
+  // Convert the string into a state array of the correct length.
+  for (uint16_t i = 0; i < inputLength; i++) {
+    // Grab the next least sigificant hexadecimal digit from the string.
+    uint8_t c = tolower(str[inputLength + strOffset - i - 1]);
     if (isxdigit(c)) {
       if (isdigit(c))
-        codeArray[i / 2] += c - '0';
+        c -= '0';
       else
-        codeArray[i / 2] += c - 'a' + 10;
+        c = c - 'a' + 10;
+    } else {
+      debug("Aborting! Non-hexadecimal char found in AirCon state: " + str);
+      return;
     }
-    if (i % 2 == 0)
-      codeArray[i / 2] <<= 4;
+    if (i % 2 == 1) {  // Odd: Upper half of the byte.
+      *statePtr += (c << 4);
+      statePtr--;  // Advance up to the next least significant byte of state.
+    } else {  // Even: Lower half of the byte.
+      *statePtr = c;
+    }
   }
-  irsend.sendKelvinator(reinterpret_cast<uint8_t *>(codeArray));
+
+  // Make the appropriate call for the protocol type.
+  switch (irType) {
+#if SEND_KELVINATOR
+    case KELVINATOR:
+      irsend.sendKelvinator(reinterpret_cast<uint8_t *>(state));
+      break;
+#endif
+#if SEND_TOSHIBA_AC
+    case TOSHIBA_AC:
+      irsend.sendToshibaAC(reinterpret_cast<uint8_t *>(state));
+      break;
+#endif
+#if SEND_DAIKIN
+    case DAIKIN:
+      irsend.sendDaikin(reinterpret_cast<uint8_t *>(state));
+      break;
+#endif
+#if MITSUBISHI_AC
+    case MITSUBISHI_AC:
+      irsend.sendMitsubishiAC(reinterpret_cast<uint8_t *>(state));
+      break;
+#endif
+#if SEND_TROTEC
+    case TROTEC:
+      irsend.sendTrotec(reinterpret_cast<uint8_t *>(state));
+      break;
+#endif
+#if SEND_ARGO
+    case ARGO:
+      irsend.sendArgo(reinterpret_cast<uint8_t *>(state));
+      break;
+#endif
+#if SEND_GREE
+    case GREE:
+      irsend.sendGree(reinterpret_cast<uint8_t *>(state));
+      break;
+#endif
+#if SEND_FUJITSU_AC
+    case FUJITSU_AC:
+      irsend.sendFujitsuAC(reinterpret_cast<uint8_t *>(state), stateSize);
+      break;
+#endif
+  }
 }
 
 // Count how many values are in the String.
@@ -389,6 +533,7 @@ uint16_t * newCodeArray(const uint16_t size) {
   return result;
 }
 
+#if SEND_GLOBALCACHE
 // Parse a GlobalCache String/code and send it.
 // Args:
 //   str: A GlobalCache formatted String of comma separated numbers.
@@ -428,10 +573,12 @@ void parseStringAndSendGC(const String str) {
   irsend.sendGC(code_array, count);  // All done. Send it.
   free(code_array);  // Free up the memory allocated.
 }
+#endif  // SEND_GLOBALCACHE
 
+#if SEND_PRONTO
 // Parse a Pronto Hex String/code and send it.
 // Args:
-//   str: A comma-separated String of nr. of repeats, then hexidecimal numbers.
+//   str: A comma-separated String of nr. of repeats, then hexadecimal numbers.
 //        e.g. "R1,0000,0067,0000,0015,0060,0018,0018,0018,0030,0018,0030,0018,
 //              0030,0018,0018,0018,0030,0018,0018,0018,0018,0018,0030,0018,
 //              0018,0018,0030,0018,0030,0018,0030,0018,0018,0018,0018,0018,
@@ -471,7 +618,7 @@ void parseStringAndSendPronto(const String str, uint16_t repeats) {
   count = 0;
   do {
     index = str.indexOf(',', start_from);
-    // Convert the hexidecimal value string to an unsigned integer.
+    // Convert the hexadecimal value string to an unsigned integer.
     code_array[count] = strtoul(str.substring(start_from, index).c_str(),
                                 NULL, 16);
     start_from = index + 1;
@@ -481,8 +628,10 @@ void parseStringAndSendPronto(const String str, uint16_t repeats) {
   irsend.sendPronto(code_array, count, repeats);  // All done. Send it.
   free(code_array);  // Free up the memory allocated.
 }
+#endif  // SEND_PRONTO
 
-// Parse a IRremote Raw Hex String/code and send it.
+#if SEND_RAW
+// Parse an IRremote Raw Hex String/code and send it.
 // Args:
 //   str: A comma-separated String containing the freq and raw IR data.
 //        e.g. "38000,9000,4500,600,1450,600,900,650,1500,..."
@@ -521,6 +670,7 @@ void parseStringAndSendRaw(const String str) {
   irsend.sendRaw(raw_array, count, freq);  // All done. Send it.
   free(raw_array);  // Free up the memory allocated.
 }
+#endif  // SEND_RAW
 
 // Parse the URL args to find the IR code.
 void handleIr() {
@@ -567,7 +717,7 @@ void setup_wifi() {
 
   wifiManager.setTimeout(300);  // Time out after 5 mins.
   if (!wifiManager.autoConnect()) {
-    debug("Failed to connect and hit timeout.");
+    debug("Wifi failed to connect and hit timeout.");
     delay(3000);
     // Reboot. A.k.a. "Have you tried turning it Off and On again?"
     ESP.reset();
@@ -582,7 +732,7 @@ void setup(void) {
 
   #ifdef DEBUG
   Serial.begin(115200);
-  #endif
+  #endif  // DEBUG
 
   setup_wifi();
 
@@ -617,14 +767,14 @@ void setup(void) {
         if (!Update.begin(maxSketchSpace)) {  // start with max available size
 #ifdef DEBUG
           Update.printError(Serial);
-#endif
+#endif  // DEBUG
         }
       } else if (upload.status == UPLOAD_FILE_WRITE) {
         if (Update.write(upload.buf, upload.currentSize) !=
             upload.currentSize) {
 #ifdef DEBUG
           Update.printError(Serial);
-#endif
+#endif  // DEBUG
         }
       } else if (upload.status == UPLOAD_FILE_END) {
         if (Update.end(true)) {  // true to set the size to the current progress
@@ -652,11 +802,13 @@ void subscribing(const String topic_name) {
 }
 
 bool reconnect() {
-  // Loop until we're reconnected
-  while (!mqtt_client.connected()) {
+  // Loop a few times or until we're reconnected
+  uint16_t tries = 1;
+  while (!mqtt_client.connected() && tries <= 3) {
     int connected = false;
     // Attempt to connect
-    debug("Attempting MQTT connection ... ");
+    debug("Attempting MQTT connection to " MQTT_SERVER ":" + String(MQTT_PORT) +
+          "... ");
     if (mqtt_user && mqtt_password)
       connected = mqtt_client.connect(mqtt_clientid, mqtt_user, mqtt_password);
     else
@@ -665,18 +817,19 @@ bool reconnect() {
     // Once connected, publish an announcement...
       mqtt_client.publish(MQTTack, "Connected");
       debug("connected.");
-    // Subscribing to topic(s)
-    subscribing(MQTTcommand);
+      // Subscribing to topic(s)
+      subscribing(MQTTcommand);
     } else {
       debug("failed, rc=" + String(mqtt_client.state()) +
-            " try again in a bit.");
+            " Try again in a bit.");
       // Wait for a bit before retrying
-      delay(MQTT_RECONNECT_TIME);
+      delay(tries << 7);  // Linear increasing back-off (x128)
     }
+    tries++;
   }
   return mqtt_client.connected();
 }
-#endif
+#endif  // MQTT_ENABLE
 
 void loop(void) {
   server.handleClient();
@@ -685,6 +838,7 @@ void loop(void) {
   // MQTT client connection management
   if (!mqtt_client.connected()) {
     uint32_t now = millis();
+    // Reconnect if it's longer than MQTT_RECONNECT_TIME since we last tried.
     if (now - lastReconnectAttempt > MQTT_RECONNECT_TIME) {
       lastReconnectAttempt = now;
       debug("client mqtt not connected, trying to connect");
@@ -703,7 +857,7 @@ void loop(void) {
     // MQTT loop
     mqtt_client.loop();
   }
-#endif
+#endif  // MQTT_ENABLE
   delay(100);
 }
 
@@ -744,122 +898,197 @@ void sendIRCode(int const ir_type, uint64_t const code, char const * code_str,
 
   // send the IR message.
   switch (ir_type) {
+#if SEND_RC5
     case RC5:  // 1
       if (bits == 0)
         bits = RC5_BITS;
       irsend.sendRC5(code, bits, repeat);
       break;
+#endif
+#if SEND_RC6
     case RC6:  // 2
       if (bits == 0)
         bits = RC6_MODE0_BITS;
       irsend.sendRC6(code, bits, repeat);
       break;
+#endif
+#if SEND_NEC
     case NEC:  // 3
       if (bits == 0)
         bits = NEC_BITS;
       irsend.sendNEC(code, bits, repeat);
       break;
+#endif
+#if SEND_SONY
     case SONY:  // 4
       if (bits == 0)
         bits = SONY_12_BITS;
       repeat = std::max(repeat, (uint16_t) SONY_MIN_REPEAT);
       irsend.sendSony(code, bits, repeat);
       break;
+#endif
+#if SEND_PANASONIC
     case PANASONIC:  // 5
       if (bits == 0)
         bits = PANASONIC_BITS;
       irsend.sendPanasonic64(code, bits, repeat);
       break;
+#endif
+#if SEND_JVC
     case JVC:  // 6
       if (bits == 0)
         bits = JVC_BITS;
       irsend.sendJVC(code, bits, repeat);
       break;
+#endif
+#if SEND_SAMSUNG
     case SAMSUNG:  // 7
       if (bits == 0)
         bits = SAMSUNG_BITS;
       irsend.sendSAMSUNG(code, bits, repeat);
       break;
+#endif
+#if SEND_WHYNTER
     case WHYNTER:  // 8
       if (bits == 0)
         bits = WHYNTER_BITS;
       irsend.sendWhynter(code, bits, repeat);
       break;
+#endif
+#if SEND_AIWA_RC_T501
     case AIWA_RC_T501:  // 9
       if (bits == 0)
         bits = AIWA_RC_T501_BITS;
       repeat = std::max(repeat, (uint16_t) AIWA_RC_T501_MIN_REPEAT);
       irsend.sendAiwaRCT501(code, bits, repeat);
       break;
+#endif
+#if SEND_LG
     case LG:  // 10
       if (bits == 0)
         bits = LG_BITS;
       irsend.sendLG(code, bits, repeat);
       break;
+#endif
+#if SEND_MITSUBISHI
     case MITSUBISHI:  // 12
       if (bits == 0)
         bits = MITSUBISHI_BITS;
       repeat = std::max(repeat, (uint16_t) MITSUBISHI_MIN_REPEAT);
       irsend.sendMitsubishi(code, bits, repeat);
       break;
+#endif
+#if SEND_DISH
     case DISH:  // 13
       if (bits == 0)
         bits = DISH_BITS;
       repeat = std::max(repeat, (uint16_t) DISH_MIN_REPEAT);
       irsend.sendDISH(code, bits, repeat);
       break;
+#endif
+#if SEND_SHARP
     case SHARP:  // 14
       if (bits == 0)
         bits = SHARP_BITS;
       irsend.sendSharpRaw(code, bits, repeat);
       break;
+#endif
+#if SEND_COOLIX
     case COOLIX:  // 15
       if (bits == 0)
         bits = COOLIX_BITS;
       irsend.sendCOOLIX(code, bits, repeat);
       break;
+#endif
+    case DAIKIN:  // 16
+    case KELVINATOR:  // 18
+    case MITSUBISHI_AC:  // 20
+    case GREE:  // 24
+    case ARGO:  // 27
+    case TROTEC:  // 28
+    case TOSHIBA_AC:  // 32
+    case FUJITSU_AC:  // 33
+      parseStringAndSendAirCon(ir_type, code_str);
+      break;
+#if SEND_DENON
     case DENON:  // 17
       if (bits == 0)
         bits = DENON_BITS;
       irsend.sendDenon(code, bits, repeat);
       break;
-    case KELVINATOR:  // 18
-      parseStringAndSendKelv(code_str);
-      break;
+#endif
+#if SEND_SHERWOOD
     case SHERWOOD:  // 19
       if (bits == 0)
         bits = SHERWOOD_BITS;
       repeat = std::max(repeat, (uint16_t) SHERWOOD_MIN_REPEAT);
       irsend.sendSherwood(code, bits, repeat);
       break;
+#endif
+#if SEND_RCMM
     case RCMM:  // 21
       if (bits == 0)
         bits == RCMM_BITS;
       irsend.sendRCMM(code, bits, repeat);
       break;
+#endif
+#if SEND_SANYO
     case SANYO_LC7461:  // 22
       if (bits == 0)
         bits = SANYO_LC7461_BITS;
       irsend.sendSanyoLC7461(code, bits, repeat);
       break;
+#endif
+#if SEND_RC5
     case RC5X:  // 23
       if (bits == 0)
         bits = RC5X_BITS;
       irsend.sendRC5(code, bits, repeat);
+      break;
+#endif
+#if SEND_PRONTO
     case PRONTO:  // 25
       parseStringAndSendPronto(code_str, repeat);
       break;
+#endif
+#if SEND_NIKAI
     case NIKAI:  // 29
       if (bits == 0)
         bits = NIKAI_BITS;
       irsend.sendNikai(code, bits, repeat);
       break;
+#endif
+#if SEND_RAW
     case RAW:  // 30
       parseStringAndSendRaw(code_str);
       break;
+#endif
+#if SEND_GLOBALCACHE
     case GLOBALCACHE:  // 31
       parseStringAndSendGC(code_str);
       break;
+#endif
+#if SEND_MIDEA
+    case MIDEA:  // 34
+      if (bits == 0)
+        bits = MIDEA_BITS;
+      irsend.sendMidea(code, bits, repeat);
+      break;
+#endif
+#if SEND_MAGIQUEST
+    case MAGIQUEST:  // 35
+      if (bits == 0)
+        bits = MAGIQUEST_BITS;
+      irsend.sendMagiQuest(code, bits, repeat);
+      break;
+#endif
+#if SEND_LASERTAG
+    case LASERTAG:  // 36
+      if (bits == 0)
+        bits = LASERTAG_BITS;
+      irsend.sendLasertag(code, bits, repeat);
+      break;
+#endif
   }
 
   // Release the lock.
@@ -877,7 +1106,7 @@ void sendIRCode(int const ir_type, uint64_t const code, char const * code_str,
       debug(code_str);
       debug("Repeats: " + String(repeat));
       // Confirm what we were asked to send was sent.
-  #ifdef MQTT_ENABLE
+#ifdef MQTT_ENABLE
       if (ir_type == PRONTO && repeat > 0)
         mqtt_client.publish(MQTTack, (String(ir_type) + ",R" +
                                       String(repeat) + "," +
@@ -885,7 +1114,7 @@ void sendIRCode(int const ir_type, uint64_t const code, char const * code_str,
       else
         mqtt_client.publish(MQTTack, (String(ir_type) + "," +
                                       String(code_str)).c_str());
-  #endif
+#endif  // MQTT_ENABLE
       break;
     default:
       debug("Code: 0x" + uint64ToString(code, 16));
@@ -897,7 +1126,7 @@ void sendIRCode(int const ir_type, uint64_t const code, char const * code_str,
                                     uint64ToString(code, 16)
                                     + "," + String(bits) + "," +
                                     String(repeat)).c_str());
-#endif
+#endif  // MQTT_ENABLE
   }
 }
 
@@ -910,7 +1139,7 @@ void receivingMQTT(String const topic_name, String const callback_str) {
 
   debug("Receiving data by MQTT topic " + topic_name);
 
-  // Make a copy of the callback string as strtok destorys it.
+  // Make a copy of the callback string as strtok destroys it.
   char* callback_c_str = strdup(callback_str.c_str());
   debug("MQTT Payload (raw): " + callback_str);
 
@@ -950,7 +1179,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   // as the orignal payload buffer will be overwritten whilst
   // constructing the PUBLISH packet.
   // Allocate the correct amount of memory for the payload copy
-  byte* payload_copy = reinterpret_cast<byte*>(malloc(length));
+  byte* payload_copy = reinterpret_cast<byte*>(malloc(length + 1));
   // Copy the payload to the new buffer
   memcpy(payload_copy, payload, length);
 
@@ -965,4 +1194,4 @@ void callback(char* topic, byte* payload, unsigned int length) {
   // Free the memory
   free(payload_copy);
 }
-#endif
+#endif  // MQTT_ENABLE

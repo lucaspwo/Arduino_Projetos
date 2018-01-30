@@ -38,7 +38,29 @@ class IRsend {
   void sendData(uint16_t onemark, uint32_t onespace, uint16_t zeromark,
                 uint32_t zerospace, uint64_t data, uint16_t nbits,
                 bool MSBfirst = true);
-  void send(uint16_t type, uint64_t data, uint16_t nbits);
+  void sendGeneric(const uint16_t headermark, const uint32_t headerspace,
+                   const uint16_t onemark, const uint32_t onespace,
+                   const uint16_t zeromark, const uint32_t zerospace,
+                   const uint16_t footermark, const uint32_t gap,
+                   const uint64_t data, const uint16_t nbits,
+                   const uint16_t frequency, const bool MSBfirst,
+                   const uint16_t repeat, const uint8_t dutycycle);
+  void sendGeneric(const uint16_t headermark, const uint32_t headerspace,
+                   const uint16_t onemark, const uint32_t onespace,
+                   const uint16_t zeromark, const uint32_t zerospace,
+                   const uint16_t footermark, const uint32_t gap,
+                   const uint32_t mesgtime,
+                   const uint64_t data, const uint16_t nbits,
+                   const uint16_t frequency, const bool MSBfirst,
+                   const uint16_t repeat, const uint8_t dutycycle);
+  void sendGeneric(const uint16_t headermark, const uint32_t headerspace,
+                   const uint16_t onemark, const uint32_t onespace,
+                   const uint16_t zeromark, const uint32_t zerospace,
+                   const uint16_t footermark, const uint32_t gap,
+                   const uint8_t *dataptr, const uint16_t nbytes,
+                   const uint16_t frequency, const bool MSBfirst,
+                   const uint16_t repeat, const uint8_t dutycycle);
+void send(uint16_t type, uint64_t data, uint16_t nbits);
 #if (SEND_NEC || SEND_SHERWOOD || SEND_AIWA_RC_T501 || SEND_SANYO)
   void sendNEC(uint64_t data, uint16_t nbits = NEC_BITS, uint16_t repeat = 0);
   uint32_t encodeNEC(uint16_t address, uint16_t command);
@@ -157,6 +179,7 @@ class IRsend {
   void sendDaikin(unsigned char data[],
                   uint16_t nbytes = DAIKIN_COMMAND_LENGTH,
                   uint16_t repeat = 0);
+  void sendDaikinGapHeader();
 #endif
 #if SEND_AIWA_RC_T501
   void sendAiwaRCT501(uint64_t data, uint16_t nbits = AIWA_RC_T501_BITS,
@@ -183,6 +206,24 @@ class IRsend {
 #if SEND_NIKAI
   void sendNikai(uint64_t data, uint16_t nbits = NIKAI_BITS,
                  uint16_t repeat = 0);
+#endif
+#if SEND_TOSHIBA_AC
+  void sendToshibaAC(unsigned char data[],
+                     uint16_t nbytes = TOSHIBA_AC_STATE_LENGTH,
+                     uint16_t repeat = TOSHIBA_AC_MIN_REPEAT);
+#endif
+#if SEND_MIDEA
+  void sendMidea(uint64_t data, uint16_t nbits = MIDEA_BITS,
+                 uint16_t repeat = MIDEA_MIN_REPEAT);
+#endif
+#if SEND_MAGIQUEST
+  void sendMagiQuest(uint64_t data, uint16_t nbits = MAGIQUEST_BITS,
+                     uint16_t repeat = 0);
+  uint64_t encodeMagiQuest(uint32_t wand_id, uint16_t magnitude);
+#endif
+#if SEND_LASERTAG
+  void sendLasertag(uint64_t data, uint16_t nbits = LASERTAG_BITS,
+                    uint16_t repeat = LASERTAG_MIN_REPEAT);
 #endif
 
  protected:

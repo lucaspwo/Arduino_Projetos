@@ -1,6 +1,6 @@
-/* Copyright 2016 sillyfrog
+/* Copyright 2017 sillyfrog
 *
-* An IR LED circuit *MUST* be connected to ESP8266 pin 4 (D2).
+* An IR LED circuit *MUST* be connected to ESP8266 GPIO4.
 *
 * TL;DR: The IR LED needs to be driven by a transistor for a good result.
 *
@@ -30,10 +30,10 @@
 #include <IRsend.h>
 #include <ir_Daikin.h>
 
-IRDaikinESP dakinir(D2);  // An IR LED is controlled by GPIO pin 4 (D2)
+IRDaikinESP daikinir(4);  // An IR LED is controlled by GPIO4, NodeMCU D2
 
 void setup() {
-  dakinir.begin();
+  daikinir.begin();
   Serial.begin(115200);
 }
 
@@ -42,15 +42,26 @@ void loop() {
   Serial.println("Sending...");
 
   // Set up what we want to send. See ir_Daikin.cpp for all the options.
-  dakinir.on();
-  dakinir.setFan(1);
-  dakinir.setMode(DAIKIN_COOL);
-  dakinir.setTemp(25);
-  dakinir.setSwingVertical(0);
-  dakinir.setSwingHorizontal(0);
+  daikinir.on();
+  daikinir.setFan(1);
+  daikinir.setMode(DAIKIN_COOL);
+  daikinir.setTemp(25);
+  daikinir.setSwingVertical(false);
+  daikinir.setSwingHorizontal(false);
+
+  // Set the current time to 1:33PM (13:33)
+  // Time works in minutes past midnight
+  daikinir.setCurrentTime((13*60) + 33);
+  // Turn off about 1 hour later at 2:30PM (15:30)
+  daikinir.enableOffTimer((14*60) + 30);
+
+  // Display what we are going to send.
+  Serial.println(daikinir.toString());
 
   // Now send the IR signal.
-  dakinir.send();
+#if SEND_DAIKIN
+  daikinir.send();
+#endif  // SEND_DAIKIN
 
-  delay(5000);
+  delay(15000);
 }

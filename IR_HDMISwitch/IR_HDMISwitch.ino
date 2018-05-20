@@ -8,8 +8,8 @@
 
 #include <IRremote.h>
 
-int RECV_PIN = 11;
-int SW = 12;
+int RECV_PIN  = 11;
+int SW        = 12;
 
 IRrecv irrecv(RECV_PIN);
 
@@ -18,6 +18,7 @@ decode_results results;
 void setup()
 {
   pinMode(SW, INPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(SW, HIGH);
   //Serial.begin(9600);
   // In case the interrupt driver crashes on setup, give a clue
@@ -33,9 +34,11 @@ void loop() {
     //Serial.println(results.value);
     if(results.value == 3536){
       //Serial.println("Deu certo!");
+      digitalWrite(LED_BUILTIN, HIGH);
       pinMode(SW, OUTPUT);
       digitalWrite(SW, LOW);
       delay(100);
+      digitalWrite(LED_BUILTIN, LOW);
       pinMode(SW, INPUT);
       digitalWrite(SW, HIGH);
       delay(100);

@@ -285,6 +285,15 @@ bool IRrecv::decode(decode_results *results, irparams_t *save) {
   if (decodeSanyoLC7461(results))
     return true;
 #endif
+#if DECODE_CARRIER_AC
+  DPRINTLN("Attempting Carrier AC decode");
+  // Try decodeCarrierAC() before decodeNEC() because the protocols are
+  // similar in timings & structure, but the Carrier one is much longer than the
+  // NEC protocol (3x32 bits vs 1x32 bits) so this one should be tried first to
+  // try to reduce false detection as a NEC packet.
+  if (decodeCarrierAC(results))
+    return true;
+#endif
 #if DECODE_NEC
   DPRINTLN("Attempting NEC decode");
   if (decodeNEC(results))
@@ -298,6 +307,11 @@ bool IRrecv::decode(decode_results *results, irparams_t *save) {
 #if DECODE_MITSUBISHI
   DPRINTLN("Attempting Mitsubishi decode");
   if (decodeMitsubishi(results))
+    return true;
+#endif
+#if DECODE_MITSUBISHI2
+  DPRINTLN("Attempting Mitsubishi2 decode");
+  if (decodeMitsubishi2(results))
     return true;
 #endif
 #if DECODE_RC5
@@ -344,6 +358,13 @@ bool IRrecv::decode(decode_results *results, irparams_t *save) {
   if (decodeLG(results, LG32_BITS, true))
     return true;
 #endif
+#if DECODE_GICABLE
+  // Note: Needs to happen before JVC decode, because it looks similar except
+  //       with a required NEC-like repeat code.
+  DPRINTLN("Attempting GICable decode");
+  if (decodeGICable(results))
+    return true;
+#endif
 #if DECODE_JVC
   DPRINTLN("Attempting JVC decode");
   if (decodeJVC(results))
@@ -380,6 +401,8 @@ bool IRrecv::decode(decode_results *results, irparams_t *save) {
     return true;
 #endif
 #if DECODE_KELVINATOR
+// Kelvinator based-devices use a similar code to Gree ones, to avoid false
+// matches this needs to happen before decodeGree().
   DPRINTLN("Attempting Kelvinator decode");
   if (decodeKelvinator(results))
     return true;
@@ -429,6 +452,34 @@ bool IRrecv::decode(decode_results *results, irparams_t *save) {
 #if DECODE_LASERTAG
   DPRINTLN("Attempting Lasertag decode");
   if (decodeLasertag(results))
+    return true;
+#endif
+#if DECODE_GREE
+  // Gree based-devices use a similar code to Kelvinator ones, to avoid false
+  // matches this needs to happen after decodeKelvinator().
+  DPRINTLN("Attempting Gree decode");
+  if (decodeGree(results))
+    return true;
+#endif
+#if DECODE_HAIER_AC
+  DPRINTLN("Attempting Haier AC decode");
+  if (decodeHaierAC(results))
+    return true;
+#endif
+#if DECODE_HITACHI_AC2
+  // HitachiAC2 should be checked before HitachiAC
+  DPRINTLN("Attempting Hitachi AC2 decode");
+  if (decodeHitachiAC(results, HITACHI_AC2_BITS))
+    return true;
+#endif
+#if DECODE_HITACHI_AC
+  DPRINTLN("Attempting Hitachi AC decode");
+  if (decodeHitachiAC(results, HITACHI_AC_BITS))
+    return true;
+#endif
+#if DECODE_HITACHI_AC1
+  DPRINTLN("Attempting Hitachi AC1 decode");
+  if (decodeHitachiAC(results, HITACHI_AC1_BITS))
     return true;
 #endif
 #if DECODE_HASH
@@ -653,39 +704,23 @@ match_result_t IRrecv::matchData(volatile uint16_t *data_ptr,
                                  const uint32_t zerospace,
                                  const uint8_t tolerance) {
   match_result_t result;
-  result.success = false;
+  result.success = false;  // Fail by default.
   result.data = 0;
-  if (onemark == zeromark) {  // Is this space encoded data format?
-    for (result.used = 0;
-         result.used < nbits * 2;
-         result.used += 2, data_ptr++) {
-      if (!matchMark(*data_ptr, onemark, tolerance))
-        return result;  // Fail
-      data_ptr++;
-      if (matchSpace(*data_ptr, onespace, tolerance))
-        result.data = (result.data << 1) | 1;
-      else if (matchSpace(*data_ptr, zerospace, tolerance))
-        result.data <<= 1;
-      else
-        return result;  // Fail
-    }
-    result.success = true;
-  } else if (onespace == zerospace) {  // Is this mark encoded data format?
-    for (result.used = 0;
-         result.used < nbits * 2;
-         result.used += 2, data_ptr++) {
-      if (matchMark(*data_ptr, onemark, tolerance))
-        result.data = (result.data << 1) | 1;
-      else if (matchMark(*data_ptr, zeromark, tolerance))
-        result.data <<= 1;
-      else
-        return result;  // Fail
-      data_ptr++;
-      if (!matchSpace(*data_ptr, onespace, tolerance))
-        return result;  // Fail
-    }
-    result.success = true;
+  for (result.used = 0;
+       result.used < nbits * 2;
+       result.used += 2, data_ptr += 2) {
+    // Is the bit a '1'?
+    if (matchMark(*data_ptr, onemark, tolerance) &&
+        matchSpace(*(data_ptr + 1), onespace, tolerance))
+      result.data = (result.data << 1) | 1;
+    // or is the bit a '0'?
+    else if (matchMark(*data_ptr, zeromark, tolerance) &&
+             matchSpace(*(data_ptr + 1), zerospace, tolerance))
+      result.data <<= 1;
+    else
+      return result;  // It's neither, so fail.
   }
+  result.success = true;
   return result;
 }
 

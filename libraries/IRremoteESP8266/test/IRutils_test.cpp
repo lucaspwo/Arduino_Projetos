@@ -174,8 +174,8 @@ TEST(TestResultToSourceCode, SimpleProtocols) {
       "560, 1680,  560, 1680,  560, 1680,  560, 560,  560, 1680,  560, 1680,  "
       "560, 1680,  560, 560,  560, 560,  560, 560,  560, 560,  560, 560,  "
       "560, 1680,  560, 560,  560, 560,  560, 1680,  560, 1680,  560, 1680,  "
-      "560, 1680,  560, 1680,  560, 560,  560, 1680,  560, 1680,  560, 65535,  "
-      "0, 42545 };  // NEC 8F704FB\n"
+      "560, 1680,  560, 1680,  560, 560,  560, 1680,  560, 1680,  560, 40320 "
+      "};  // NEC 8F704FB\n"
       "uint32_t address = 0x10;\n"
       "uint32_t command = 0x20;\n"
       "uint64_t data = 0x8F704FB;\n", resultToSourceCode(&irsend.capture));
@@ -271,7 +271,7 @@ TEST(TestResultToTimingInfo, General) {
       "    +   560, -  1680, \n"
       "   +   560, -  1680,    +   560, -  1680,    +   560, -   560,"
       "    +   560, -  1680, \n"
-      "   +   560, -  1680,    +   560, -108080\n",
+      "   +   560, -  1680,    +   560, - 40320\n",
       resultToTimingInfo(&irsend.capture));
 
   irsend.reset();
@@ -323,4 +323,23 @@ TEST(TestResultToHumanReadableBasic, ComplexCodes) {
       "Encoding  : TOSHIBA_AC\n"
       "Code      : F20D03FC0100000001 (72 bits)\n",
       resultToHumanReadableBasic(&irsend.capture));
+}
+
+TEST(TestInvertBits, Normal) {
+  ASSERT_EQ(0xAAAA5555AAAA5555, invertBits(0x5555AAAA5555AAAA, 64));
+  ASSERT_EQ(0xAAAA5555, invertBits(0x5555AAAA, 32));
+  ASSERT_EQ(0xFFFFFFFFFFFFFFFF, invertBits(0x0, 64));
+  ASSERT_EQ(0x0, invertBits(invertBits(0x0, 64), 64));
+  ASSERT_EQ(0x2, invertBits(0x1, 2));
+}
+
+TEST(TestInvertBits, ZeroBits) {
+  ASSERT_EQ(0xAAAA5555AAAA5555, invertBits(0xAAAA5555AAAA5555, 0));
+  ASSERT_EQ(0x0, invertBits(0x0, 0));
+  ASSERT_EQ(0x1, invertBits(0x1, 0));
+}
+
+TEST(TestInvertBits, MoreThan64Bits) {
+  ASSERT_EQ(0xAAAA5555AAAA5555, invertBits(0x5555AAAA5555AAAA, 70));
+  ASSERT_EQ(0xFFFFFFFFFFFFFFFF, invertBits(0x0, 128));
 }

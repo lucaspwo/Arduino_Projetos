@@ -1,6 +1,6 @@
 /*
  * Send arbitrary IR codes via a web server or MQTT.
- * Copyright David Conran 2016
+ * Copyright David Conran 2016, 2017, 2018
  * Version 0.3 Oct, 2017
  *
  * NOTE: An IR LED circuit *MUST* be connected to ESP8266 pin 4 (D2). See IR_LED
@@ -132,6 +132,7 @@
 // Configuration parameters
 #define IR_LED 4  // GPIO the IR LED is connected to/controlled by. GPIO 4 = D2.
 #define HTTP_PORT 80  // The port the HTTP server is listening on.
+#define HOSTNAME "ir_server"  // Name of the device you want in mDNS.
 
 #ifdef MQTT_ENABLE
 // Address of your MQTT server.
@@ -142,7 +143,8 @@ const char* mqtt_user = "";
 const char* mqtt_password = "";
 #define MQTT_RECONNECT_TIME 5000  // Delay(ms) between reconnect tries.
 
-#define MQTTprefix "ir_server"
+#define MQTTprefix HOSTNAME  // Change this if you want the MQTT topic to be
+                             // independent of the hostname.
 #define MQTTack MQTTprefix "/sent"  // Topic we send back acknowledgements on
 #define MQTTcommand MQTTprefix "/send"  // Topic we get new commands from.
 #endif  // MQTT_ENABLE
@@ -165,14 +167,18 @@ uint16_t *codeArray;
 uint32_t lastReconnectAttempt = 0;  // MQTT last attempt reconnection number
 bool boot = true;
 bool ir_lock = false;  // Primitive locking for gating the IR LED.
+uint32_t sendReqCounter = 0;
 
 #ifdef MQTT_ENABLE
+String lastMqttCmd = "None";
+uint32_t lastMqttCmdTime = 0;
+
+
 // MQTT client parameters
 void callback(char* topic, byte* payload, unsigned int length);
 PubSubClient mqtt_client(MQTT_SERVER, MQTT_PORT, callback, espClient);
 // Create a unique MQTT client id.
-const char* mqtt_clientid = String(MQTTprefix +
-                                   String(ESP.getChipId(), HEX)).c_str();
+String mqtt_clientid = MQTTprefix + String(ESP.getChipId(), HEX);
 #endif  // MQTT_ENABLE
 
 // Debug messages get sent to the serial port.
@@ -183,6 +189,50 @@ void debug(String str) {
 #endif  // DEBUG
 }
 
+String timeSince(uint32_t const start) {
+  if (start == 0)
+    return "Never";
+  uint32_t diff = 0;
+  uint32_t now = millis();
+  if (start < now)
+    diff = now - start;
+  else
+    diff = UINT32_MAX - start + now;
+  diff /= 1000;  // Convert to seconds.
+  if (diff == 0)  return "Now";
+
+  // Note: millis() can only count up to 45 days, so uint8_t is safe.
+  uint8_t days = diff / (60 * 60 * 24);
+  uint8_t hours = (diff / (60 * 60)) % 24;
+  uint8_t minutes = (diff / 60) % 60;
+  uint8_t seconds = diff % 60;
+
+  String result = "";
+  if (days)
+    result += String(days) + " day";
+  if (days > 1)  result += "s";
+  if (hours)
+    result += " " + String(hours) + " hour";
+  if (hours > 1)  result += "s";
+  if (minutes)
+    result += " " + String(minutes) + " minute";
+  if (minutes > 1)  result += "s";
+  if (seconds)
+    result += " " + String(seconds) + " second";
+  if (seconds > 1)  result += "s";
+  result.trim();
+  return result + " ago";
+}
+
+// Quick and dirty check for any unsafe chars in a string
+// that may cause HTML shenanigans. e.g. An XSS.
+bool hasUnsafeHTMLChars(String input) {
+  static char unsafe[] = "';!-\"<>=&{}()";
+  for (uint8_t i = 0; unsafe[i]; i++)
+    if (input.indexOf(unsafe[i]) != -1) return true;
+  return false;
+}
+
 // Root web page with example usage etc.
 void handleRoot() {
   server.send(200, "text/html",
@@ -190,13 +240,24 @@ void handleRoot() {
     "<body>"
     "<center><h1>ESP8266 IR MQTT Server</h1></center>"
     "<br><hr>"
-    "<h3>Connection details</h3>"
-    "<p>IP address: " + WiFi.localIP().toString() + "</p>"
+    "<h3>Information</h3>"
+    "<p>IP address: " + WiFi.localIP().toString() + "<br>"
+    "Booted: " + timeSince(1) + "<br>" +
+    "IR Lib Version: " _IRREMOTEESP8266_VERSION_ "<br>"
+    "Total send requests: " + String(sendReqCounter) + "</p>"
 #ifdef MQTT_ENABLE
-    "<p>MQTT server: " MQTT_SERVER ":" + String(MQTT_PORT) + " ("+
-    (mqtt_client.connected() ? "Connected" : "Disconnected") + ")<br>"
+    "<h4>MQTT Information</h4>"
+    "<p>Server: " MQTT_SERVER ":" + String(MQTT_PORT) + " <i>(" +
+    (mqtt_client.connected() ? "Connected" : "Disconnected") + ")</i><br>"
+    "Client id: " + mqtt_clientid + "<br>"
     "Command topic: " MQTTcommand "<br>"
-    "Acknowledgements topic: " MQTTack "</p>"
+    "Acknowledgements topic: " MQTTack "<br>"
+    "Last command seen: " +
+    // lastMqttCmd is unescaped untrusted input.
+    // Avoid any possible HTML/XSS when displaying it.
+    (hasUnsafeHTMLChars(lastMqttCmd) ?
+        "<i>Contains unsafe HTML characters</i>" : lastMqttCmd) +
+    " <i>(" + timeSince(lastMqttCmdTime) + ")</i></p>"
 #endif  // MQTT_ENABLE
     "<br><hr>"
     "<h3>Hardcoded examples</h3>"
@@ -227,15 +288,18 @@ void handleRoot() {
       "Type: "
       "<select name='type'>"
         "<option value='9'>Aiwa RC T501</option>"
+        "<option value='37'>Carrier AC</option>"
         "<option value='15'>Coolix</option>"
         "<option value='17'>Denon</option>"
         "<option value='13'>Dish</option>"
+        "<option value='41'>GICable</option>"
         "<option value='6'>JVC</option>"
         "<option value='10'>LG</option>"
         "<option value='36'>Lasertag</option>"
         "<option value='35'>MagiQuest</option>"
         "<option value='34'>Midea</option>"
         "<option value='12'>Mitsubishi</option>"
+        "<option value='39'>Mitsubishi2</option>"
         "<option selected='selected' value='3'>NEC</option>"  // Default
         "<option value='29'>Nikai</option>"
         "<option value='5'>Panasonic</option>"
@@ -322,6 +386,10 @@ void handleRoot() {
         "<option value='16'>Daikin</option>"
         "<option value='33'>Fujitsu</option>"
         "<option value='24'>Gree</option>"
+        "<option value='38'>Haier</option>"
+        "<option value='40'>Hitachi (28 bytes)</option>"
+        "<option value='41'>Hitachi1 (13 bytes)</option>"
+        "<option value='42'>Hitachi2 (53 bytes)</option>"
         "<option selected='selected' value='18'>Kelvinator</option>"  // Default
         "<option value='20'>Mitsubishi</option>"
         "<option value='32'>Toshiba</option>"
@@ -418,6 +486,18 @@ void parseStringAndSendAirCon(const uint16_t irType, const String str) {
       // Lastly, it should never exceed the maximum "normal" size.
       stateSize = std::min(stateSize, (uint16_t) FUJITSU_AC_STATE_LENGTH);
       break;
+    case HAIER_AC:
+      stateSize = HAIER_AC_STATE_LENGTH;
+      break;
+    case HITACHI_AC:
+      stateSize = HITACHI_AC_STATE_LENGTH;
+      break;
+    case HITACHI_AC1:
+      stateSize = HITACHI_AC1_STATE_LENGTH;
+      break;
+    case HITACHI_AC2:
+      stateSize = HITACHI_AC2_STATE_LENGTH;
+      break;
     default:  // Not a protocol we expected. Abort.
       debug("Unexpected AirCon protocol detected. Ignoring.");
       return;
@@ -491,6 +571,26 @@ void parseStringAndSendAirCon(const uint16_t irType, const String str) {
 #if SEND_FUJITSU_AC
     case FUJITSU_AC:
       irsend.sendFujitsuAC(reinterpret_cast<uint8_t *>(state), stateSize);
+      break;
+#endif
+#if SEND_HAIER_AC
+    case HAIER_AC:
+      irsend.sendHaierAC(reinterpret_cast<uint8_t *>(state));
+      break;
+#endif
+#if SEND_HITACHI_AC
+    case HITACHI_AC:
+      irsend.sendHitachiAC(reinterpret_cast<uint8_t *>(state));
+      break;
+#endif
+#if SEND_HITACHI_AC1
+    case HITACHI_AC1:
+      irsend.sendHitachiAC1(reinterpret_cast<uint8_t *>(state));
+      break;
+#endif
+#if SEND_HITACHI_AC2
+    case HITACHI_AC2:
+      irsend.sendHitachiAC2(reinterpret_cast<uint8_t *>(state));
       break;
 #endif
   }
@@ -724,7 +824,7 @@ void setup_wifi() {
     delay(5000);
   }
 
-  debug("WiFi connected. IP address: " + WiFi.localIP());
+  debug("WiFi connected. IP address: " + WiFi.localIP().toString());
 }
 
 void setup(void) {
@@ -741,7 +841,7 @@ void setup(void) {
 
   lastReconnectAttempt = 0;
 
-  if (mdns.begin(MQTTprefix, WiFi.localIP())) {
+  if (mdns.begin(HOSTNAME, WiFi.localIP())) {
     debug("MDNS responder started");
   }
 
@@ -810,9 +910,10 @@ bool reconnect() {
     debug("Attempting MQTT connection to " MQTT_SERVER ":" + String(MQTT_PORT) +
           "... ");
     if (mqtt_user && mqtt_password)
-      connected = mqtt_client.connect(mqtt_clientid, mqtt_user, mqtt_password);
+      connected = mqtt_client.connect(mqtt_clientid.c_str(), mqtt_user,
+                                      mqtt_password);
     else
-      connected = mqtt_client.connect(mqtt_clientid);
+      connected = mqtt_client.connect(mqtt_clientid.c_str());
     if (connected) {
     // Once connected, publish an announcement...
       mqtt_client.publish(MQTTack, "Connected");
@@ -1008,6 +1109,10 @@ void sendIRCode(int const ir_type, uint64_t const code, char const * code_str,
     case TROTEC:  // 28
     case TOSHIBA_AC:  // 32
     case FUJITSU_AC:  // 33
+    case HAIER_AC:  // 38
+    case HITACHI_AC:  // 40
+    case HITACHI_AC1:  // 41
+    case HITACHI_AC2:  // 42
       parseStringAndSendAirCon(ir_type, code_str);
       break;
 #if SEND_DENON
@@ -1028,7 +1133,7 @@ void sendIRCode(int const ir_type, uint64_t const code, char const * code_str,
 #if SEND_RCMM
     case RCMM:  // 21
       if (bits == 0)
-        bits == RCMM_BITS;
+        bits = RCMM_BITS;
       irsend.sendRCMM(code, bits, repeat);
       break;
 #endif
@@ -1089,43 +1194,64 @@ void sendIRCode(int const ir_type, uint64_t const code, char const * code_str,
       irsend.sendLasertag(code, bits, repeat);
       break;
 #endif
+#if SEND_CARRIER_AC
+    case CARRIER_AC:  // 37
+      if (bits == 0)
+        bits = CARRIER_AC_BITS;
+      irsend.sendCarrierAC(code, bits, repeat);
+      break;
+#endif
+#if SEND_MITSUBISHI2
+    case MITSUBISHI2:  // 39
+      if (bits == 0)
+        bits = MITSUBISHI_BITS;
+      repeat = std::max(repeat, (uint16_t) MITSUBISHI_MIN_REPEAT);
+      irsend.sendMitsubishi2(code, bits, repeat);
+      break;
+#endif
+#if SEND_GICABLE
+    case GICABLE:  // 43
+      if (bits == 0)
+        bits = GICABLE_BITS;
+      repeat = std::max(repeat, (uint16_t) GICABLE_BITS);
+      irsend.sendGICable(code, bits, repeat);
+      break;
+#endif
   }
-
+  sendReqCounter++;
   // Release the lock.
   ir_lock = false;
 
   // Indicate that we sent the message.
   debug("Sent the IR message.");
   debug("Type: " + String(ir_type));
-  switch (ir_type) {
-    case KELVINATOR:
-    case PRONTO:
-    case RAW:
-    case GLOBALCACHE:
-      debug("Code: ");
-      debug(code_str);
-      debug("Repeats: " + String(repeat));
-      // Confirm what we were asked to send was sent.
+  // For "long" codes we basically repeat what we got.
+  if (hasACState((decode_type_t) ir_type) ||
+      ir_type == PRONTO ||
+      ir_type == RAW ||
+      ir_type == GLOBALCACHE) {
+    debug("Code: ");
+    debug(code_str);
+    debug("Repeats: " + String(repeat));
+    // Confirm what we were asked to send was sent.
 #ifdef MQTT_ENABLE
-      if (ir_type == PRONTO && repeat > 0)
-        mqtt_client.publish(MQTTack, (String(ir_type) + ",R" +
-                                      String(repeat) + "," +
-                                      String(code_str)).c_str());
-      else
-        mqtt_client.publish(MQTTack, (String(ir_type) + "," +
-                                      String(code_str)).c_str());
-#endif  // MQTT_ENABLE
-      break;
-    default:
-      debug("Code: 0x" + uint64ToString(code, 16));
-      debug("Bits: " + String(bits));
-      debug("Repeats: " + String(repeat));
-
-#ifdef MQTT_ENABLE
+    if (ir_type == PRONTO && repeat > 0)
+      mqtt_client.publish(MQTTack, (String(ir_type) + ",R" +
+                                    String(repeat) + "," +
+                                    String(code_str)).c_str());
+    else
       mqtt_client.publish(MQTTack, (String(ir_type) + "," +
-                                    uint64ToString(code, 16)
-                                    + "," + String(bits) + "," +
-                                    String(repeat)).c_str());
+                                    String(code_str)).c_str());
+#endif  // MQTT_ENABLE
+  } else {  // For "short" codes, we break it down a bit more before we report.
+    debug("Code: 0x" + uint64ToString(code, 16));
+    debug("Bits: " + String(bits));
+    debug("Repeats: " + String(repeat));
+#ifdef MQTT_ENABLE
+    mqtt_client.publish(MQTTack, (String(ir_type) + "," +
+                                  uint64ToString(code, 16)
+                                  + "," + String(bits) + "," +
+                                  String(repeat)).c_str());
 #endif  // MQTT_ENABLE
   }
 }
@@ -1142,6 +1268,9 @@ void receivingMQTT(String const topic_name, String const callback_str) {
   // Make a copy of the callback string as strtok destroys it.
   char* callback_c_str = strdup(callback_str.c_str());
   debug("MQTT Payload (raw): " + callback_str);
+  // Save the message as the last command seen (global).
+  lastMqttCmd = callback_str;
+  lastMqttCmdTime = millis();
 
   // Get the numeric protocol type.
   int ir_type = strtoul(strtok_r(callback_c_str, ",", &tok_ptr), NULL, 10);

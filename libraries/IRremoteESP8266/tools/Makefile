@@ -24,8 +24,20 @@ CXXFLAGS += -g -Wall -Wextra -pthread
 
 all : gc_decode
 
+run_tests : all
+	failed=""; \
+	for py_unittest in *_test.py; do \
+	  echo "RUNNING: $${py_unittest}"; \
+		python ./$${py_unittest} || failed="$${failed} $${py_unittest}"; \
+	done; \
+	if [ -n "$${failed}" ]; then \
+		echo "FAIL: :-( :-( Unit test(s)$${failed} failed! :-( :-("; exit 1; \
+	else \
+		echo "PASS: \o/ \o/ All unit tests passed. \o/ \o/"; \
+	fi
+
 clean :
-	rm -f  *.o gc_decode
+	rm -f  *.o *.pyc gc_decode
 
 
 # All the IR protocol object files.
@@ -34,7 +46,8 @@ PROTOCOLS = ir_NEC.o ir_Sony.o ir_Samsung.o ir_JVC.o ir_RCMM.o ir_RC5_RC6.o \
             ir_Denon.o ir_Dish.o ir_Panasonic.o ir_Whynter.o ir_Coolix.o \
             ir_Aiwa.o ir_Sherwood.o ir_Kelvinator.o ir_Daikin.o ir_Gree.o \
             ir_Pronto.o ir_GlobalCache.o ir_Nikai.o ir_Toshiba.o ir_Midea.o \
-            ir_Magiquest.o ir_Lasertag.o
+            ir_Magiquest.o ir_Lasertag.o ir_Carrier.o ir_Haier.o ir_Hitachi.o \
+						ir_GICable.o
 
 # Common object files
 COMMON_OBJ = IRutils.o IRtimer.o IRsend.o IRrecv.o $(PROTOCOLS)
@@ -148,3 +161,15 @@ ir_Magiquest.o : $(USER_DIR)/ir_Magiquest.cpp $(GTEST_HEADERS)
 
 ir_Lasertag.o : $(USER_DIR)/ir_Lasertag.cpp $(USER_DIR)/ir_RC5_RC6.cpp $(COMMON_DEPS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $(USER_DIR)/ir_Lasertag.cpp
+
+ir_Carrier.o : $(USER_DIR)/ir_Carrier.cpp $(GTEST_HEADERS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $(USER_DIR)/ir_Carrier.cpp
+
+ir_Haier.o : $(USER_DIR)/ir_Haier.cpp $(USER_DIR)/ir_Haier.h $(GTEST_HEADERS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $(USER_DIR)/ir_Haier.cpp
+
+ir_Hitachi.o : $(USER_DIR)/ir_Hitachi.cpp $(GTEST_HEADERS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $(USER_DIR)/ir_Hitachi.cpp
+
+ir_GICable.o : $(USER_DIR)/ir_GICable.cpp $(GTEST_HEADERS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $(USER_DIR)/ir_GICable.cpp

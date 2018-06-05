@@ -102,13 +102,19 @@ std::string typeToString(const decode_type_t protocol,
     case UNUSED:        result = "UNUSED";            break;
     case AIWA_RC_T501:  result = "AIWA_RC_T501";      break;
     case ARGO:          result = "ARGO";              break;
+    case CARRIER_AC:    result = "CARRIER_AC";        break;
     case COOLIX:        result = "COOLIX";            break;
     case DAIKIN:        result = "DAIKIN";            break;
     case DENON:         result = "DENON";             break;
     case DISH:          result = "DISH";              break;
     case FUJITSU_AC:    result = "FUJITSU_AC";        break;
+    case GICABLE:       result = "GICABLE";           break;
     case GLOBALCACHE:   result = "GLOBALCACHE";       break;
     case GREE:          result = "GREE";              break;
+    case HAIER_AC:      result = "HAIER_AC";          break;
+    case HITACHI_AC:    result = "HITACHI_AC";        break;
+    case HITACHI_AC1:   result = "HITACHI_AC1";       break;
+    case HITACHI_AC2:   result = "HITACHI_AC2";       break;
     case JVC:           result = "JVC";               break;
     case KELVINATOR:    result = "KELVINATOR";        break;
     case LG:            result = "LG";                break;
@@ -116,6 +122,7 @@ std::string typeToString(const decode_type_t protocol,
     case MAGIQUEST:     result = "MAGIQUEST";         break;
     case MIDEA:         result = "MIDEA";             break;
     case MITSUBISHI:    result = "MITSUBISHI";        break;
+    case MITSUBISHI2:   result = "MITSUBISHI2";       break;
     case MITSUBISHI_AC: result = "MITSUBISHI_AC";     break;
     case NEC:           result = "NEC";               break;
     case NEC_LIKE:      result = "NEC (non-strict)";  break;
@@ -146,7 +153,13 @@ bool hasACState(const decode_type_t protocol) {
   switch (protocol) {
     case DAIKIN:
     case FUJITSU_AC:
+    case GREE:
+    case HAIER_AC:
+    case HITACHI_AC:
+    case HITACHI_AC1:
+    case HITACHI_AC2:
     case KELVINATOR:
+    case MITSUBISHI_AC:
     case TOSHIBA_AC:
       return true;
     default:
@@ -314,4 +327,14 @@ uint8_t sumBytes(uint8_t *start, const uint16_t length, const uint8_t init) {
   for (ptr = start; ptr - start < length; ptr++)
     checksum += *ptr;
   return checksum;
+}
+
+uint64_t invertBits(const uint64_t data, const uint16_t nbits) {
+  // No change if we are asked to invert no bits.
+  if (nbits == 0)  return data;
+  uint64_t result = ~data;
+  // If we are asked to invert all the bits or more than we have, it's simple.
+  if (nbits >= sizeof(data) * 8)  return result;
+  // Mask off any unwanted bits and return the result.
+  return (result & ((1ULL << nbits) - 1));
 }

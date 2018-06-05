@@ -47,16 +47,8 @@
 #define FNV_PRIME_32 16777619UL
 #define FNV_BASIS_32 2166136261UL
 
-#define MAX2(a, b) ((a > b)?(a):(b))
-#define MAX4(a, b, c, d) MAX2(MAX2(a, b), MAX2(c, d))
-#define STATE_SIZE_MAX MAX2(MAX4(ARGO_COMMAND_LENGTH, \
-                                 TROTEC_COMMAND_LENGTH, \
-                                 MITSUBISHI_AC_STATE_LENGTH, \
-                                 KELVINATOR_STATE_LENGTH), \
-                            MAX4(GREE_STATE_LENGTH, \
-                                 DAIKIN_COMMAND_LENGTH, \
-                                 TOSHIBA_AC_STATE_LENGTH, \
-                                 FUJITSU_AC_STATE_LENGTH))
+// Hitachi AC is the current largest state size.
+#define STATE_SIZE_MAX HITACHI_AC2_STATE_LENGTH
 
 // Types
 // information for the interrupt handler
@@ -122,11 +114,13 @@ class IRrecv {
   void setUnknownThreshold(uint16_t length);
 #endif
   static bool match(uint32_t measured, uint32_t desired,
-             uint8_t tolerance = TOLERANCE, uint16_t delta = 0);
+                    uint8_t tolerance = TOLERANCE, uint16_t delta = 0);
   static bool matchMark(uint32_t measured, uint32_t desired,
-                 uint8_t tolerance = TOLERANCE, int16_t excess = MARK_EXCESS);
+                        uint8_t tolerance = TOLERANCE,
+                        int16_t excess = MARK_EXCESS);
   static bool matchSpace(uint32_t measured, uint32_t desired,
-                  uint8_t tolerance = TOLERANCE, int16_t excess = MARK_EXCESS);
+                         uint8_t tolerance = TOLERANCE,
+                         int16_t excess = MARK_EXCESS);
 #ifndef UNIT_TEST
 
  private:
@@ -170,6 +164,11 @@ class IRrecv {
   bool decodeMitsubishi(decode_results *results,
                         uint16_t nbits = MITSUBISHI_BITS,
                         bool strict = true);
+#endif
+#if DECODE_MITSUBISHI2
+  bool decodeMitsubishi2(decode_results *results,
+                         uint16_t nbits = MITSUBISHI_BITS,
+                         bool strict = true);
 #endif
 #if (DECODE_RC5 || DECODE_R6 || DECODE_LASERTAG)
   int16_t getRClevel(decode_results *results, uint16_t *offset, uint16_t *used,
@@ -263,6 +262,31 @@ class IRrecv {
 #if DECODE_LASERTAG
   bool decodeLasertag(decode_results *results, uint16_t nbits = LASERTAG_BITS,
                       bool strict = true);
+#endif
+#if DECODE_CARRIER_AC
+  bool decodeCarrierAC(decode_results *results,
+                       uint16_t nbits = CARRIER_AC_BITS,
+                       bool strict = true);
+#endif
+#if DECODE_GREE
+  bool decodeGree(decode_results *results,
+                  uint16_t nbits = GREE_BITS, bool strict = true);
+#endif
+#if DECODE_HAIER_AC
+  bool decodeHaierAC(decode_results *results,
+                   uint16_t nbits = HAIER_AC_BITS, bool strict = true);
+#endif
+#if (DECODE_HITACHI_AC || DECODE_HITACHI_AC2)
+  bool decodeHitachiAC(decode_results *results,
+                       uint16_t nbits = HITACHI_AC_BITS, bool strict = true);
+#endif
+#if DECODE_HITACHI_AC1
+  bool decodeHitachiAC1(decode_results *results,
+                        uint16_t nbits = HITACHI_AC1_BITS, bool strict = true);
+#endif
+#if DECODE_GICABLE
+  bool decodeGICable(decode_results *results, uint16_t nbits = GICABLE_BITS,
+                     bool strict = true);
 #endif
 };
 

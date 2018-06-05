@@ -33,6 +33,8 @@
  * (https://github.com/mharizanov/Daikin-AC-remote-control-over-the-Internet/)
  * Fujitsu A/C code added by jonnygraham
  * Trotec AC code by stufisher
+ * Carrier AC code by crankyoldgit
+ *
  *  GPL license, all text above must be included in any redistribution
  ****************************************************/
 
@@ -46,7 +48,7 @@
 #endif
 
 // Library Version
-#define _IRREMOTEESP8266_VERSION_ "2.3.1"
+#define _IRREMOTEESP8266_VERSION_ "2.4.1"
 // Supported IR protocols
 // Each protocol you include costs memory and, during decode, costs time
 // Disable (set to false) all the protocols you do not need/want!
@@ -98,6 +100,9 @@
 #define DECODE_MITSUBISHI    true
 #define SEND_MITSUBISHI      true
 
+#define DECODE_MITSUBISHI2   true
+#define SEND_MITSUBISHI2     true
+
 #define DECODE_DISH          true
 #define SEND_DISH            true
 
@@ -125,7 +130,7 @@
 #define DECODE_GLOBALCACHE   false  // Not written.
 #define SEND_GLOBALCACHE     true
 
-#define DECODE_GREE          false  // Not written.
+#define DECODE_GREE          true
 #define SEND_GREE            true
 
 #define DECODE_PRONTO        false  // Not written.
@@ -152,13 +157,38 @@
 #define DECODE_LASERTAG      true
 #define SEND_LASERTAG        true
 
+#define DECODE_CARRIER_AC    true
+#define SEND_CARRIER_AC      true
+
+#define DECODE_HAIER_AC      true
+#define SEND_HAIER_AC        true
+
+#define DECODE_HITACHI_AC    true
+#define SEND_HITACHI_AC      true
+
+#define DECODE_HITACHI_AC1   true
+#define SEND_HITACHI_AC1     true
+
+#define DECODE_HITACHI_AC2   true
+#define SEND_HITACHI_AC2     true
+
+#define DECODE_GICABLE       true
+#define SEND_GICABLE         true
+
 #if (DECODE_ARGO || DECODE_DAIKIN || DECODE_FUJITSU_AC || DECODE_GREE || \
      DECODE_KELVINATOR || DECODE_MITSUBISHI_AC || DECODE_TOSHIBA_AC || \
-     DECODE_TROTEC)
+     DECODE_TROTEC || DECODE_HAIER_AC || DECODE_HITACHI_AC || \
+     DECODE_HITACHI_AC1 || DECODE_HITACHI_AC2)
 #define DECODE_AC true  // We need some common infrastructure for decoding A/Cs.
 #else
 #define DECODE_AC false   // We don't need that infrastructure.
 #endif
+
+// Use millisecond 'delay()' calls where we can to avoid tripping the WDT.
+// Note: If you plan to send IR messages in the callbacks of the AsyncWebserver
+//       library, you need to set ALLOW_DELAY_CALLS to false.
+//       Ref: https://github.com/markszabo/IRremoteESP8266/issues/430
+#define ALLOW_DELAY_CALLS true
 
 /*
  * Always add to the end of the list and should never remove entries
@@ -203,13 +233,22 @@ enum decode_type_t {
   FUJITSU_AC,
   MIDEA,
   MAGIQUEST,
-  LASERTAG
+  LASERTAG,
+  CARRIER_AC,
+  HAIER_AC,
+  MITSUBISHI2,
+  HITACHI_AC,
+  HITACHI_AC1,
+  HITACHI_AC2,
+  GICABLE
 };
 
 // Message lengths & required repeat values
 #define AIWA_RC_T501_BITS           15U
 #define AIWA_RC_T501_MIN_REPEAT      1U
 #define COOLIX_BITS                 24U
+#define CARRIER_AC_BITS             32U
+#define CARRIER_AC_MIN_REPEAT        0U
 // Daikin has a lot of static stuff that is discarded
 #define DAIKIN_RAW_BITS            583U
 #define DAIKIN_COMMAND_LENGTH       27U
@@ -219,8 +258,18 @@ enum decode_type_t {
 #define DENON_LEGACY_BITS           14U
 #define DISH_BITS                   16U
 #define DISH_MIN_REPEAT              3U
+#define GICABLE_BITS                16U
+#define GICABLE_MIN_REPEAT           1U
 #define GREE_STATE_LENGTH            8U
 #define GREE_BITS                   (GREE_STATE_LENGTH * 8)
+#define HAIER_AC_STATE_LENGTH        9U
+#define HAIER_AC_BITS               (HAIER_AC_STATE_LENGTH * 8)
+#define HITACHI_AC_STATE_LENGTH     28U
+#define HITACHI_AC_BITS             (HITACHI_AC_STATE_LENGTH * 8)
+#define HITACHI_AC1_STATE_LENGTH    13U
+#define HITACHI_AC1_BITS            (HITACHI_AC1_STATE_LENGTH * 8)
+#define HITACHI_AC2_STATE_LENGTH    53U
+#define HITACHI_AC2_BITS            (HITACHI_AC2_STATE_LENGTH * 8)
 #define JVC_BITS                    16U
 #define KELVINATOR_STATE_LENGTH     16U
 #define KELVINATOR_BITS             (KELVINATOR_STATE_LENGTH * 8)

@@ -2,7 +2,14 @@
 #include<CountUpDownTimer.h>
 #include <serLCD.h>
 
-int pin = 7;
+#define pin   7
+#define L     2
+#define A     3
+#define M     4
+#define R     5
+#define vcc   8
+
+//int pin = 7;
 int ser;
 bool bL1 = false, bL2 = false, bA1 = false, bA2 = false, bM1 = false, bM2 = false, bR1 = false, bR2 = false;
 String disp;
@@ -12,9 +19,14 @@ CountUpDownTimer T2(UP, HIGH);
 CountUpDownTimer T3(UP, HIGH);
 CountUpDownTimer T4(UP, HIGH);
 
-void setup()
-{
+void setup(){
   lcd.clear();
+  pinMode(vcc, OUTPUT);
+  digitalWrite(vcc, HIGH);
+  pinMode(L, INPUT);
+  pinMode(A, INPUT);
+  pinMode(M, INPUT);
+  pinMode(R, INPUT);
   Serial.begin(115200);
   T1.SetTimer(0,0,0);     //start at 1 minute (USE FOR: DOWN ONLY)
   T2.SetTimer(0,0,0);
@@ -22,59 +34,111 @@ void setup()
   T4.SetTimer(0,0,0);
 }
 
-void loop()
-{
-  if(Serial.available() > 0){
-    ser = Serial.read();
-    if(ser == 'L'){
-      if(bL1 == false && bL2 == false){
-        bL1 = true;
-        T1.StartTimer();
-      } else if(bL1 == true && bL2 == false){
-        bL2 = true;
-        T1.PauseTimer();
-      } else if(bL1 == true && bL2 == true){
-        bL2 = false;
-        T1.ResumeTimer();
-      }
-    }
-    else if(ser == 'A'){
-      if(bA1 == false && bA2 == false){
-        bA1 = true;
-        T2.StartTimer();
-      } else if(bA1 == true && bA2 == false){
-        bA2 = true;
-        T2.PauseTimer();
-      } else if(bA1 == true && bA2 == true){
-        bA2 = false;
-        T2.ResumeTimer();
-      }
-    }
-    else if(ser == 'M'){
-      if(bM1 == false && bM2 == false){
-        bM1 = true;
-        T3.StartTimer();
-      } else if(bM1 == true && bM2 == false){
-        bM2 = true;
-        T3.PauseTimer();
-      } else if(bM1 == true && bM2 == true){
-        bM2 = false;
-        T3.ResumeTimer();
-      }
-    }
-    else if(ser == 'R'){
-      if(bR1 == false && bR2 == false){
-        bR1 = true;
-        T4.StartTimer();
-      } else if(bR1 == true && bR2 == false){
-        bR2 = true;
-        T4.PauseTimer();
-      } else if(bR1 == true && bR2 == true){
-        bR2 = false;
-        T4.ResumeTimer();
-      }
+void loop(){
+
+  if(digitalRead(L)){
+    if(bL1 == false && bL2 == false){
+      bL1 = true;
+      T1.StartTimer();
+    } else if(bL1 == true && bL2 == false){
+      bL2 = true;
+      T1.PauseTimer();
+    } else if(bL1 == true && bL2 == true){
+      bL2 = false;
+      T1.ResumeTimer();
     }
   }
+  
+  if(digitalRead(A)){
+    if(bA1 == false && bA2 == false){
+      bA1 = true;
+      T2.StartTimer();
+    } else if(bA1 == true && bA2 == false){
+      bA2 = true;
+      T2.PauseTimer();
+    } else if(bA1 == true && bA2 == true){
+      bA2 = false;
+      T2.ResumeTimer();
+    }
+  }
+  
+  if(digitalRead(M)){
+    if(bM1 == false && bM2 == false){
+      bM1 = true;
+      T3.StartTimer();
+    } else if(bM1 == true && bM2 == false){
+      bM2 = true;
+      T3.PauseTimer();
+    } else if(bM1 == true && bM2 == true){
+      bM2 = false;
+      T3.ResumeTimer();
+    }
+  }
+  
+  if(digitalRead(R)){
+    if(bR1 == false && bR2 == false){
+      bR1 = true;
+      T4.StartTimer();
+    } else if(bR1 == true && bR2 == false){
+      bR2 = true;
+      T4.PauseTimer();
+    } else if(bR1 == true && bR2 == true){
+      bR2 = false;
+      T4.ResumeTimer();
+    }
+  }
+  
+//  if(Serial.available() > 0){
+//    ser = Serial.read();
+//    if(ser == 'L'){
+//      if(bL1 == false && bL2 == false){
+//        bL1 = true;
+//        T1.StartTimer();
+//      } else if(bL1 == true && bL2 == false){
+//        bL2 = true;
+//        T1.PauseTimer();
+//      } else if(bL1 == true && bL2 == true){
+//        bL2 = false;
+//        T1.ResumeTimer();
+//      }
+//    }
+//    else if(ser == 'A'){
+//      if(bA1 == false && bA2 == false){
+//        bA1 = true;
+//        T2.StartTimer();
+//      } else if(bA1 == true && bA2 == false){
+//        bA2 = true;
+//        T2.PauseTimer();
+//      } else if(bA1 == true && bA2 == true){
+//        bA2 = false;
+//        T2.ResumeTimer();
+//      }
+//    }
+//    else if(ser == 'M'){
+//      if(bM1 == false && bM2 == false){
+//        bM1 = true;
+//        T3.StartTimer();
+//      } else if(bM1 == true && bM2 == false){
+//        bM2 = true;
+//        T3.PauseTimer();
+//      } else if(bM1 == true && bM2 == true){
+//        bM2 = false;
+//        T3.ResumeTimer();
+//      }
+//    }
+//    else if(ser == 'R'){
+//      if(bR1 == false && bR2 == false){
+//        bR1 = true;
+//        T4.StartTimer();
+//      } else if(bR1 == true && bR2 == false){
+//        bR2 = true;
+//        T4.PauseTimer();
+//      } else if(bR1 == true && bR2 == true){
+//        bR2 = false;
+//        T4.ResumeTimer();
+//      }
+//    }
+//  }
 
   T1.Timer();   // run the timer
   T2.Timer();

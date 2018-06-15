@@ -62,7 +62,7 @@ void loop()
         T3.ResumeTimer();
       }
     }
-    if(ser == 'R'){
+    else if(ser == 'R'){
       if(bR1 == false && bR2 == false){
         bR1 = true;
         T4.StartTimer();

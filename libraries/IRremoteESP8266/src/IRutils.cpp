@@ -98,51 +98,57 @@ std::string typeToString(const decode_type_t protocol,
 #endif
   switch (protocol) {
     default:
-    case UNKNOWN:       result = "UNKNOWN";           break;
-    case UNUSED:        result = "UNUSED";            break;
-    case AIWA_RC_T501:  result = "AIWA_RC_T501";      break;
-    case ARGO:          result = "ARGO";              break;
-    case CARRIER_AC:    result = "CARRIER_AC";        break;
-    case COOLIX:        result = "COOLIX";            break;
-    case DAIKIN:        result = "DAIKIN";            break;
-    case DENON:         result = "DENON";             break;
-    case DISH:          result = "DISH";              break;
-    case FUJITSU_AC:    result = "FUJITSU_AC";        break;
-    case GICABLE:       result = "GICABLE";           break;
-    case GLOBALCACHE:   result = "GLOBALCACHE";       break;
-    case GREE:          result = "GREE";              break;
-    case HAIER_AC:      result = "HAIER_AC";          break;
-    case HITACHI_AC:    result = "HITACHI_AC";        break;
-    case HITACHI_AC1:   result = "HITACHI_AC1";       break;
-    case HITACHI_AC2:   result = "HITACHI_AC2";       break;
-    case JVC:           result = "JVC";               break;
-    case KELVINATOR:    result = "KELVINATOR";        break;
-    case LG:            result = "LG";                break;
-    case LASERTAG:      result = "LASERTAG";          break;
-    case MAGIQUEST:     result = "MAGIQUEST";         break;
-    case MIDEA:         result = "MIDEA";             break;
-    case MITSUBISHI:    result = "MITSUBISHI";        break;
-    case MITSUBISHI2:   result = "MITSUBISHI2";       break;
-    case MITSUBISHI_AC: result = "MITSUBISHI_AC";     break;
-    case NEC:           result = "NEC";               break;
-    case NEC_LIKE:      result = "NEC (non-strict)";  break;
-    case NIKAI:         result = "NIKAI";             break;
-    case PANASONIC:     result = "PANASONIC";         break;
-    case PRONTO:        result = "PRONTO";            break;
-    case RAW:           result = "RAW";               break;
-    case RC5:           result = "RC5";               break;
-    case RC5X:          result = "RC5X";              break;
-    case RC6:           result = "RC6";               break;
-    case RCMM:          result = "RCMM";              break;
-    case SAMSUNG:       result = "SAMSUNG";           break;
-    case SANYO:         result = "SANYO";             break;
-    case SANYO_LC7461:  result = "SANYO_LC7461";      break;
-    case SHARP:         result = "SHARP";             break;
-    case SHERWOOD:      result = "SHERWOOD";          break;
-    case SONY:          result = "SONY";              break;
-    case TOSHIBA_AC:    result = "TOSHIBA_AC";        break;
-    case TROTEC:        result = "TROTEC";            break;
-    case WHYNTER:       result = "WHYNTER";           break;
+    case UNKNOWN:        result = "UNKNOWN";           break;
+    case UNUSED:         result = "UNUSED";            break;
+    case AIWA_RC_T501:   result = "AIWA_RC_T501";      break;
+    case ARGO:           result = "ARGO";              break;
+    case CARRIER_AC:     result = "CARRIER_AC";        break;
+    case COOLIX:         result = "COOLIX";            break;
+    case DAIKIN:         result = "DAIKIN";            break;
+    case DENON:          result = "DENON";             break;
+    case DISH:           result = "DISH";              break;
+    case ELECTRA_AC:     result = "ELECTRA_AC";        break;
+    case FUJITSU_AC:     result = "FUJITSU_AC";        break;
+    case GICABLE:        result = "GICABLE";           break;
+    case GLOBALCACHE:    result = "GLOBALCACHE";       break;
+    case GREE:           result = "GREE";              break;
+    case HAIER_AC:       result = "HAIER_AC";          break;
+    case HAIER_AC_YRW02: result = "HAIER_AC_YRW02";    break;
+    case HITACHI_AC:     result = "HITACHI_AC";        break;
+    case HITACHI_AC1:    result = "HITACHI_AC1";       break;
+    case HITACHI_AC2:    result = "HITACHI_AC2";       break;
+    case JVC:            result = "JVC";               break;
+    case KELVINATOR:     result = "KELVINATOR";        break;
+    case LG:             result = "LG";                break;
+    case LASERTAG:       result = "LASERTAG";          break;
+    case LUTRON:         result = "LUTRON";            break;
+    case MAGIQUEST:      result = "MAGIQUEST";         break;
+    case MIDEA:          result = "MIDEA";             break;
+    case MITSUBISHI:     result = "MITSUBISHI";        break;
+    case MITSUBISHI2:    result = "MITSUBISHI2";       break;
+    case MITSUBISHI_AC:  result = "MITSUBISHI_AC";     break;
+    case NEC:            result = "NEC";               break;
+    case NEC_LIKE:       result = "NEC (non-strict)";  break;
+    case NIKAI:          result = "NIKAI";             break;
+    case PANASONIC:      result = "PANASONIC";         break;
+    case PANASONIC_AC:   result = "PANASONIC_AC";      break;
+    case PRONTO:         result = "PRONTO";            break;
+    case RAW:            result = "RAW";               break;
+    case RC5:            result = "RC5";               break;
+    case RC5X:           result = "RC5X";              break;
+    case RC6:            result = "RC6";               break;
+    case RCMM:           result = "RCMM";              break;
+    case SAMSUNG:        result = "SAMSUNG";           break;
+    case SAMSUNG_AC:     result = "SAMSUNG_AC";        break;
+    case SANYO:          result = "SANYO";             break;
+    case SANYO_LC7461:   result = "SANYO_LC7461";      break;
+    case SHARP:          result = "SHARP";             break;
+    case SHERWOOD:       result = "SHERWOOD";          break;
+    case SONY:           result = "SONY";              break;
+    case TOSHIBA_AC:     result = "TOSHIBA_AC";        break;
+    case TROTEC:         result = "TROTEC";            break;
+    case WHIRLPOOL_AC:   result = "WHIRLPOOL_AC";      break;
+    case WHYNTER:        result = "WHYNTER";           break;
   }
   if (isRepeat) result += " (Repeat)";
   return result;
@@ -152,15 +158,20 @@ std::string typeToString(const decode_type_t protocol,
 bool hasACState(const decode_type_t protocol) {
   switch (protocol) {
     case DAIKIN:
+    case ELECTRA_AC:
     case FUJITSU_AC:
     case GREE:
     case HAIER_AC:
+    case HAIER_AC_YRW02:
     case HITACHI_AC:
     case HITACHI_AC1:
     case HITACHI_AC2:
     case KELVINATOR:
     case MITSUBISHI_AC:
+    case PANASONIC_AC:
+    case SAMSUNG_AC:
     case TOSHIBA_AC:
+    case WHIRLPOOL_AC:
       return true;
     default:
       return false;
@@ -176,7 +187,7 @@ bool hasACState(const decode_type_t protocol) {
 uint16_t getCorrectedRawLength(const decode_results *results) {
   uint16_t extended_length = results->rawlen - 1;
   for (uint16_t i = 0; i < results->rawlen - 1; i++) {
-    uint32_t usecs = results->rawbuf[i] * RAWTICK;
+    uint32_t usecs = results->rawbuf[i] * kRawTick;
     // Add two extra entries for multiple larger than UINT16_MAX it is.
     extended_length += (usecs / (UINT16_MAX + 1)) * 2;
   }
@@ -202,7 +213,7 @@ std::string resultToSourceCode(const decode_results *results) {
   // Dump data
   for (uint16_t i = 1; i < results->rawlen; i++) {
     uint32_t usecs;
-    for (usecs = results->rawbuf[i] * RAWTICK;
+    for (usecs = results->rawbuf[i] * kRawTick;
          usecs > UINT16_MAX;
          usecs -= UINT16_MAX) {
       output += uint64ToString(UINT16_MAX);
@@ -279,7 +290,7 @@ std::string resultToTimingInfo(const decode_results *results) {
       output += "-";  // even
     else
       output += "   +";  // odd
-    value = uint64ToString(results->rawbuf[i] * RAWTICK);
+    value = uint64ToString(results->rawbuf[i] * kRawTick);
     // Space pad the value till it is at least 6 chars long.
     while (value.length() < 6)
       value = " " + value;

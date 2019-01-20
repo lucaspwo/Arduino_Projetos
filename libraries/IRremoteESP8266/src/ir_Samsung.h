@@ -37,8 +37,8 @@ const uint8_t kSamsungAcFanMed = 4;
 const uint8_t kSamsungAcFanHigh = 5;
 const uint8_t kSamsungAcFanAuto2 = 6;
 const uint8_t kSamsungAcFanTurbo = 7;
-const uint8_t kSamsungAcMinTemp = 16;  // 16C
-const uint8_t kSamsungAcMaxTemp = 30;  // 30C
+const uint8_t kSamsungAcMinTemp = 16;   // 16C
+const uint8_t kSamsungAcMaxTemp = 30;   // 30C
 const uint8_t kSamsungAcAutoTemp = 25;  // 25C
 const uint8_t kSamsungAcTempMask = 0xF0;
 const uint8_t kSamsungAcPowerMask1 = 0x20;
@@ -55,7 +55,6 @@ const uint8_t kSamsungAcQuietMask11 = 0x01;
 const uint16_t kSamsungACSectionLength = 7;
 const uint64_t kSamsungAcPowerSection = 0x1D20F00000000;
 
-
 // Classes
 class IRSamsungAc {
  public:
@@ -63,8 +62,10 @@ class IRSamsungAc {
 
   void stateReset();
 #if SEND_SAMSUNG_AC
-  void send(const bool calcchecksum = true);
-  void sendExtended(const bool calcchecksum = true);
+  void send(const uint16_t repeat = kSamsungAcDefaultRepeat,
+            const bool calcchecksum = true);
+  void sendExtended(const uint16_t repeat = kSamsungAcDefaultRepeat,
+                    const bool calcchecksum = true);
 #endif  // SEND_SAMSUNG_AC
   void begin();
   void on();

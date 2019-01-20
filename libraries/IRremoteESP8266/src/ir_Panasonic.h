@@ -24,6 +24,9 @@
 
 // Constants
 const uint16_t kPanasonicFreq = 36700;
+const uint16_t kPanasonicAcExcess = 0;
+// Much higher than usual. See issue #540.
+const uint16_t kPanasonicAcTolerance = 40;
 
 const uint8_t kPanasonicAcAuto = 0;  // 0b0000
 const uint8_t kPanasonicAcDry = 2;   // 0b0010
@@ -34,12 +37,15 @@ const uint8_t kPanasonicAcFanMin = 0;
 const uint8_t kPanasonicAcFanMax = 4;
 const uint8_t kPanasonicAcFanAuto = 7;
 const uint8_t kPanasonicAcFanOffset = 3;
-const uint8_t kPanasonicAcPower = 1;  // 0b1
-const uint8_t kPanasonicAcMinTemp = 16;  // Celsius
-const uint8_t kPanasonicAcMaxTemp = 30;  // Celsius
+const uint8_t kPanasonicAcPower = 1;         // 0b1
+const uint8_t kPanasonicAcMinTemp = 16;      // Celsius
+const uint8_t kPanasonicAcMaxTemp = 30;      // Celsius
 const uint8_t kPanasonicAcFanModeTemp = 27;  // Celsius
-const uint8_t kPanasonicAcQuiet = 1;  // 0b1
-const uint8_t kPanasonicAcPowerful = 0x20;  // 0b100000
+const uint8_t kPanasonicAcQuiet = 1;         // 0b1
+const uint8_t kPanasonicAcPowerful = 0x20;   // 0b100000
+// CKP models have Powerful and Quiet bits swapped.
+const uint8_t kPanasonicAcQuietCkp = 0x20;  // 0b100000
+const uint8_t kPanasonicAcPowerfulCkp = 1;  // 0b1
 const uint8_t kPanasonicAcSwingVAuto = 0xF;
 const uint8_t kPanasonicAcSwingVUp = 0x1;
 const uint8_t kPanasonicAcSwingVDown = 0x5;
@@ -50,14 +56,15 @@ const uint8_t kPanasonicAcSwingHLeft = 0xA;
 const uint8_t kPanasonicAcSwingHRight = 0xB;
 const uint8_t kPanasonicAcSwingHFullRight = 0xC;
 const uint8_t kPanasonicAcChecksumInit = 0xF4;
-const uint8_t kPanasonicAcOnTimer =  0b00000010;
+const uint8_t kPanasonicAcOnTimer = 0b00000010;
 const uint8_t kPanasonicAcOffTimer = 0b00000100;
-
+const uint16_t kPanasonicAcTimeMax = 23 * 60 + 59;  // Mins since midnight.
+const uint16_t kPanasonicAcTimeSpecial = 0x600;
 
 const uint8_t kPanasonicKnownGoodState[kPanasonicAcStateLength] = {
-  0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06,
-  0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00,
-  0x00, 0x0E, 0xE0, 0x00, 0x00, 0x81, 0x00, 0x00, 0x00};
+    0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06, 0x02,
+    0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00,
+    0x00, 0x0E, 0xE0, 0x00, 0x00, 0x81, 0x00, 0x00, 0x00};
 
 enum panasonic_ac_remote_model_t {
   kPanasonicUnknown = 0,
@@ -65,8 +72,8 @@ enum panasonic_ac_remote_model_t {
   kPanasonicNke = 2,
   kPanasonicDke = 3,
   kPanasonicJke = 4,
+  kPanasonicCkp = 5,
 };
-
 
 class IRPanasonicAc {
  public:
@@ -74,7 +81,7 @@ class IRPanasonicAc {
 
   void stateReset();
 #if SEND_PANASONIC
-  void send();
+  void send(const uint16_t repeat = kPanasonicAcDefaultRepeat);
 #endif  // SEND_PANASONIC
   void begin();
   void on();
@@ -88,34 +95,47 @@ class IRPanasonicAc {
   void setMode(const uint8_t mode);
   uint8_t getMode();
   void setRaw(const uint8_t state[]);
-  uint8_t* getRaw();
+  uint8_t *getRaw();
   static bool validChecksum(uint8_t *state,
                             const uint16_t length = kPanasonicAcStateLength);
   static uint8_t calcChecksum(uint8_t *state,
-                               const uint16_t length = kPanasonicAcStateLength);
+                              const uint16_t length = kPanasonicAcStateLength);
   void setQuiet(const bool state);
   bool getQuiet();
   void setPowerful(const bool state);
   bool getPowerful();
   void setModel(const panasonic_ac_remote_model_t model);
   panasonic_ac_remote_model_t getModel();
-  void setSwingV(const uint8_t elevation);
+  void setSwingVertical(const uint8_t elevation);
   uint8_t getSwingVertical();
-  void setSwingH(const uint8_t direction);
+  void setSwingHorizontal(const uint8_t direction);
   uint8_t getSwingHorizontal();
-
+  static uint16_t encodeTime(const uint8_t hours, const uint8_t mins);
+  uint16_t getClock();
+  void setClock(const uint16_t mins_since_midnight);
+  uint16_t getOnTimer();
+  void setOnTimer(const uint16_t mins_since_midnight, const bool enable = true);
+  void cancelOnTimer();
+  bool isOnTimerEnabled();
+  uint16_t getOffTimer();
+  void setOffTimer(const uint16_t mins_since_midnight,
+                   const bool enable = true);
+  void cancelOffTimer();
+  bool isOffTimerEnabled();
 #ifdef ARDUINO
   String toString();
+  static String timeToString(const uint16_t mins_since_midnight);
 #else
   std::string toString();
+  static std::string timeToString(const uint16_t mins_since_midnight);
 #endif
 #ifndef UNIT_TEST
 
  private:
 #endif
   uint8_t remote_state[kPanasonicAcStateLength];
-  uint8_t _swingh = kPanasonicAcSwingHMiddle;
-  uint8_t _temp = 25;
+  uint8_t _swingh;
+  uint8_t _temp;
   void fixChecksum(const uint16_t length = kPanasonicAcStateLength);
   static uint8_t calcChecksum(const uint8_t *state,
                               const uint16_t length = kPanasonicAcStateLength);

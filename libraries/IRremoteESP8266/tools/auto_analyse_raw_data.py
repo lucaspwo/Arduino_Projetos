@@ -1,7 +1,7 @@
 #!/usr/bin/python
 """Attempt an automatic analysis of IRremoteESP8266's Raw data output.
    Makes suggestions on key values and tried to break down the message
-   into likely chuncks."""
+   into likely chunks."""
 #
 # Copyright 2018 David Conran
 import argparse
@@ -46,7 +46,7 @@ class RawIRMessage(object):
     self.spaces, self.space_buckets = self.reduce_list(self.spaces)
 
   def reduce_list(self, items):
-    """Reduce the list of numbers into buckets that are atleast margin apart."""
+    """Reduce a list of numbers into buckets that are at least margin apart."""
     result = []
     last = -1
     buckets = {}
@@ -61,7 +61,7 @@ class RawIRMessage(object):
 
   def _usec_compare(self, seen, expected):
     """Compare two usec values and see if they match within a
-       subtrative margin."""
+       subtractive margin."""
     return seen <= expected and seen > expected - self.margin
 
   def _usec_compares(self, usecs, expecteds):
@@ -85,9 +85,9 @@ class RawIRMessage(object):
                       "        %s (LSB first)\n"
                       "  Bin:  0b%s (MSB first)\n"
                       "        0b%s (LSB first)\n" %
-                      (bits, "0x{0:0{1}X}".format(num, bits / 4),
-                       "0x{0:0{1}X}".format(rev_num, bits / 4), num, rev_num,
-                       binary_str, rev_binary_str))
+                      (bits, ("0x{0:0%dX}" % (bits / 4)).format(num),
+                       ("0x{0:0%dX}" % (bits / 4)).format(rev_num), num,
+                       rev_num, binary_str, rev_binary_str))
 
   def add_data_code(self, bin_str, footer=True):
     """Add the common "data" sequence of code to send the bulk of a message."""
@@ -165,7 +165,7 @@ def avg_list(items):
 
 
 def add_bit(so_far, bit, output=sys.stdout):
-  """Add a bit to the end of the bits collected so far. """
+  """Add a bit to the end of the bits collected so far."""
   if bit == "reset":
     return ""
   output.write(str(bit))  # This effectively displays in LSB first order.
@@ -375,6 +375,7 @@ def generate_irsend_code(defines, normal, bits_str, output=sys.stdout):
                  "                38000, // Complete guess of the modulation"
                  " frequency.\n"
                  "                true, 0, 50);\n"
+                 "  }\n"
                  "}\n" % ", 0x".join("%02X" % int(bits_str[i:i + 8], 2)
                                      for i in range(0, len(bits_str), 8)))
 

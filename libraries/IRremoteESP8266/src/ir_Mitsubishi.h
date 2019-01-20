@@ -56,16 +56,15 @@ const uint8_t kMitsubishiAcStartStopTimer = 7;
 #define MITSUBISHI_AC_COOL kMitsubishiAcCool
 #define MITSUBISHI_AC_AUTO kMitsubishiAcAuto
 
-
 class IRMitsubishiAC {
  public:
   explicit IRMitsubishiAC(uint16_t pin);
 
-  static uint8_t calculateChecksum(uint8_t *data);
+  static uint8_t calculateChecksum(uint8_t* data);
 
   void stateReset();
 #if SEND_MITSUBISHI_AC
-  void send();
+  void send(const uint16_t repeat = kMitsubishiACMinRepeat);
 #endif  // SEND_MITSUBISHI_AC
   void begin();
   void on();
@@ -106,6 +105,5 @@ class IRMitsubishiAC {
   void checksum();
   IRsend _irsend;
 };
-
 
 #endif  // IR_MITSUBISHI_H_

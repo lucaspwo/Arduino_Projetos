@@ -49,7 +49,7 @@ void loop() {
   //Joystick.setThrottle(thro);
   brak = analogRead(A1);
   //Joystick.setBrake(brak);
-  Joystick.setRzAxis(thro-brak);
+  Joystick.setRzAxis(thro-brak+31);
   /*for (int index = 0; index < 5; index++)
   {
     int currentButtonState = !digitalRead(index + 2);

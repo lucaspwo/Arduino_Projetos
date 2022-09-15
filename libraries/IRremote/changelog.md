@@ -2,6 +2,26 @@
 The latest version may not be released!
 See also the commit log at github: https://github.com/Arduino-IRremote/Arduino-IRremote/commits/master
 
+## 3.9.0
+- Improved documentation with the help of [ElectronicsArchiver}(https://github.com/ElectronicsArchiver).
+- Added NEC2 protocol.
+- Improved Magiquest protocol.
+- Renamed sendSamsungRepeat() to sendSamsungLGRepeat().
+- Added function sendPulseDistanceWidth().
+- Improved repeat detection for some protocols.
+
+## 3.8.0
+- Changed Samsung repeat handling. Old handling is available as SamsungLG.
+- Added function printIRSendUsage().
+- Reduced output size and improved format of printIRResultRawFormatted() to fasten up output (and getting repeats properly decoded).
+- Fixed Bug in sendDenonRaw() and improved decodeDenon().
+- Fixed potential bug in SendBiphase data for 1 bit.
+- Fixed bug in send for RP4020.
+- Fixed pin mapping problems especially for Teensy 2.0.
+- Added support for decoding of "special" NEC repeats.
+- Added SAMD51 support.
+- Improved pin mapping for TinyReceiver.
+
 ## 3.7.1
 - SendRaw now supports bufferlenght > 255.
 - Improved DistanceProtocol decoder output.

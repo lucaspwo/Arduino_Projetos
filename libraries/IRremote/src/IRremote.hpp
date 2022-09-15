@@ -65,10 +65,10 @@
 #ifndef _IR_REMOTE_HPP
 #define _IR_REMOTE_HPP
 
-#define VERSION_IRREMOTE "3.7.1"
+#define VERSION_IRREMOTE "3.9.0"
 #define VERSION_IRREMOTE_MAJOR 3
-#define VERSION_IRREMOTE_MINOR 7
-#define VERSION_IRREMOTE_PATCH 1
+#define VERSION_IRREMOTE_MINOR 9
+#define VERSION_IRREMOTE_PATCH 0
 
 /*
  * Macro to convert 3 version parts into an integer
@@ -117,8 +117,8 @@
 #    if !defined(EXCLUDE_EXOTIC_PROTOCOLS) // saves around 2000 bytes program memory
 #define DECODE_BOSEWAVE
 #define DECODE_LEGO_PF
-#define DECODE_WHYNTER
 #define DECODE_MAGIQUEST // It modifies the RAW_BUFFER_LENGTH from 100 to 112
+#define DECODE_WHYNTER
 #    endif
 
 #    if !defined(EXCLUDE_UNIVERSAL_PROTOCOLS)
@@ -147,7 +147,7 @@
 #define RAW_BUFFER_LENGTH  112  // MagiQuest requires 112 bytes.
 #  else
 #define RAW_BUFFER_LENGTH  100  ///< Length of raw duration buffer. Must be even. 100 supports up to 48 bit codings inclusive 1 start and 1 stop bit.
-//#define RAW_BUFFER_LENGTH  750  // 750 is the value for air condition remotes.
+//#define RAW_BUFFER_LENGTH  750  // 750 (600 if we have only 2k RAM) is the value for air condition remotes.
 #  endif
 #endif
 #if RAW_BUFFER_LENGTH % 2 == 1
@@ -216,8 +216,8 @@
 
 #if (defined(ESP32) || defined(ARDUINO_ARCH_RP2040) || defined(PARTICLE)) || defined(ARDUINO_ARCH_MBED)
 #  if !defined(SEND_PWM_BY_TIMER)
-#define SEND_PWM_BY_TIMER       // the best and default method for ESP32
-#warning INFO: For ESP32, RP2040, mbed and particle boards SEND_PWM_BY_TIMER is enabled by default. If this is not intended, deactivate the line over this warning message in file IRremote.hpp.
+#define SEND_PWM_BY_TIMER       // the best and default method for ESP32 etc.
+#warning INFO: For ESP32, RP2040, mbed and particle boards SEND_PWM_BY_TIMER is enabled by default. If this is not intended, deactivate the line in IRremote.hpp over this warning message in file IRremote.hpp.
 #  endif
 #else
 #  if defined(SEND_PWM_BY_TIMER)
@@ -244,7 +244,7 @@
  */
 //#define USE_OPEN_DRAIN_OUTPUT_FOR_SEND_PIN
 #if defined(USE_OPEN_DRAIN_OUTPUT_FOR_SEND_PIN) && !defined(OUTPUT_OPEN_DRAIN)
-#warning Pin mode OUTPUT_OPEN_DRAIN is not supported on this platform -> fall back to mode OUTPUT.
+#warning Pin mode OUTPUT_OPEN_DRAIN is not supported on this platform -> mimick open drain mode by switching between INPUT and OUTPUT mode.
 #endif
 /**
  * This amount is subtracted from the on-time of the pulses generated for software PWM generation.
@@ -279,6 +279,11 @@
 #define MICROS_IN_ONE_MILLI 1000L
 
 #include "IRremoteInt.h"
+/*
+ * We always use digitalWriteFast() and digitalReadFast() functions to have a consistent mapping for pins.
+ * For most non AVR cpu's, it is just a mapping to digitalWrite() and digitalRead() functions.
+ */
+#include "digitalWriteFast.h"
 
 #if !defined(USE_IRREMOTE_HPP_AS_PLAIN_INCLUDE)
 #include "private/IRTimer.hpp"  // defines IR_SEND_PIN for AVR and SEND_PWM_BY_TIMER

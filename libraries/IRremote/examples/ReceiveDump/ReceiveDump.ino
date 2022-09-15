@@ -32,7 +32,13 @@
  */
 #include <Arduino.h>
 
-//#define RAW_BUFFER_LENGTH  750  // 750 is the value for air condition remotes.
+#if RAMEND <= 0x4FF || (defined(RAMSIZE) && RAMSIZE < 0x4FF)
+#define RAW_BUFFER_LENGTH  180  // 750 (600 if we have only 2k RAM) is the value for air condition remotes. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
+#elif RAMEND <= 0x8FF || (defined(RAMSIZE) && RAMSIZE < 0x8FF)
+#define RAW_BUFFER_LENGTH  600  // 750 (600 if we have only 2k RAM) is the value for air condition remotes. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
+#else
+#define RAW_BUFFER_LENGTH  750  // 750 (600 if we have only 2k RAM) is the value for air condition remotes. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
+#endif
 
 /*
  * You can change this value accordingly to the receiver module you use.
@@ -45,7 +51,7 @@
 //#define RECORD_GAP_MICROS 12000 // Activate it for some LG air conditioner protocols
 //#define DEBUG // Activate this for lots of lovely debug output from the decoders.
 
-#include "PinDefinitionsAndMore.h" //Define macros for input and output pin etc.
+#include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc.
 #include <IRremote.hpp>
 
 //+=============================================================================
@@ -84,11 +90,13 @@ void loop() {
         if (IrReceiver.decodedIRData.flags & IRDATA_FLAGS_WAS_OVERFLOW) {
             Serial.println(F("Overflow detected"));
             Serial.println(F("Try to increase the \"RAW_BUFFER_LENGTH\" value of " STR(RAW_BUFFER_LENGTH) " in " __FILE__));
-            // see also https://github.com/Arduino-IRremote/Arduino-IRremote#modifying-compile-options-with-sloeber-ide
+            // see also https://github.com/Arduino-IRremote/Arduino-IRremote#compile-options--macros-for-this-library
         } else {
             Serial.println();                               // 2 blank lines between entries
             Serial.println();
             IrReceiver.printIRResultShort(&Serial);
+            Serial.println();
+            IrReceiver.printIRSendUsage(&Serial);
             Serial.println();
             Serial.println(F("Raw result in internal ticks (50 us) - with leading gap"));
             IrReceiver.printIRResultRawFormatted(&Serial, false); // Output the results in RAW format

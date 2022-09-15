@@ -42,21 +42,17 @@
 //#define USE_LG2_PROTOCOL // Try it if you do not have success with the default LG protocol
 #define NUMBER_OF_COMMANDS_BETWEEN_PRINT_OF_MENU 5
 
-#include "PinDefinitionsAndMore.h" //Define macros for input and output pin etc.
+#define INFO // Deactivate this to save program memory and suppress info output from the LG-AC driver.
+//#define DEBUG // Activate this for more output from the LG-AC driver.
+
+#include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc.
 #include <IRremote.hpp>
 
 #if defined(__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny85__) || defined(__AVR_ATtiny87__) || defined(__AVR_ATtiny167__)
 #include "ATtinySerialOut.hpp" // Available as Arduino library "ATtinySerialOut"
 #endif
 
-#define INFO // Deactivate this to save program memory and suppress info output from the LG-AC driver.
-//#define DEBUG // Activate this for more output from the LG-AC driver.
 #include "ac_LG.hpp"
-
-// On the Zero and others we switch explicitly to SerialUSB
-#if defined(ARDUINO_ARCH_SAMD)
-#define Serial SerialUSB
-#endif
 
 #define SIZE_OF_RECEIVE_BUFFER 10
 char sRequestString[SIZE_OF_RECEIVE_BUFFER];

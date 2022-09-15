@@ -44,9 +44,38 @@
  */
 #include <Arduino.h>
 
-//#define EXCLUDE_EXOTIC_PROTOCOLS // saves around 900 bytes program memory
+/*
+ * Specify which protocol(s) should be used for decoding.
+ * If no protocol is defined, all protocols are active.
+ * This must be done before the #include <IRremote.hpp>
+ */
+//#define DECODE_LG
+//#define DECODE_NEC
+//#define DECODE_DISTANCE
+// etc. see IRremote.hpp
+//
 
-#include "PinDefinitionsAndMore.h" //Define macros for input and output pin etc.
+#if RAMEND <= 0x4FF || (defined(RAMSIZE) && RAMSIZE < 0x4FF)
+#define RAW_BUFFER_LENGTH  120
+#elif RAMEND <= 0xAFF || (defined(RAMSIZE) && RAMSIZE < 0xAFF) // 0xAFF for LEONARDO
+#define RAW_BUFFER_LENGTH  500 // 600 is too much here, because we have additional uint8_t rawCode[RAW_BUFFER_LENGTH];
+#else
+#define RAW_BUFFER_LENGTH  750
+#endif
+
+//#define NO_LED_FEEDBACK_CODE // saves 92 bytes program memory
+//#define EXCLUDE_UNIVERSAL_PROTOCOLS // Saves up to 1000 bytes program memory.
+//#define EXCLUDE_EXOTIC_PROTOCOLS // saves around 650 bytes program memory if all other protocols are active
+
+// MARK_EXCESS_MICROS is subtracted from all marks and added to all spaces before decoding,
+// to compensate for the signal forming of different IR receiver modules.
+//#define MARK_EXCESS_MICROS    20 // 20 is recommended for the cheap VS1838 modules
+
+//#define RECORD_GAP_MICROS 12000 // Activate it for some LG air conditioner protocols
+
+//#define DEBUG // Activate this for lots of lovely debug output from the decoders.
+
+#include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc.
 #include <IRremote.hpp>
 
 int SEND_BUTTON_PIN = APPLICATION_PIN;
@@ -54,11 +83,6 @@ int STATUS_PIN = LED_BUILTIN;
 
 int DELAY_BETWEEN_REPEAT = 50;
 int DEFAULT_NUMBER_OF_REPEATS_TO_SEND = 3;
-
-// On the Zero and others we switch explicitly to SerialUSB
-#if defined(ARDUINO_ARCH_SAMD)
-#define Serial SerialUSB
-#endif
 
 // Storage for the recorded code
 struct storedIRDataStruct {
@@ -171,6 +195,7 @@ void storeCode(IRData *aIRReceivedData) {
         IrReceiver.compensateAndStoreIRResultInArray(sStoredIRData.rawCode);
     } else {
         IrReceiver.printIRResultShort(&Serial);
+        IrReceiver.printIRSendUsage(&Serial);
         sStoredIRData.receivedIRData.flags = 0; // clear flags -esp. repeat- for later sending
         Serial.println();
     }

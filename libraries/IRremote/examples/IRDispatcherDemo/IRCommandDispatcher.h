@@ -9,7 +9,7 @@
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of ServoEasing https://github.com/ArminJo/ServoEasing.
- *  This file is part of IRMP https://github.com/ukw100/IRMP.
+ *  This file is part of IRMP https://github.com/IRMP-org/IRMP.
  *  This file is part of Arduino-IRremote https://github.com/Arduino-IRremote/Arduino-IRremote.
  *
  *  ServoEasing is free software: you can redistribute it and/or modify
@@ -82,7 +82,7 @@ public:
     void checkAndCallCommand(bool aCallAlsoBlockingCommands);
 
     void printIRCommandString(Print *aSerial);
-    void setRequestToStopReceived();
+    void setRequestToStopReceived(bool aRequestToStopReceived = true);
 
     uint8_t currentBlockingCommandCalled = COMMAND_INVALID; // The code for the current called command
     bool executingBlockingCommand = false;              // Lock for recursive calls of regular commands

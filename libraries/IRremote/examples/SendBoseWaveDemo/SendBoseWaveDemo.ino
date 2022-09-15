@@ -33,7 +33,7 @@
  */
 #include <Arduino.h>
 
-#include "PinDefinitionsAndMore.h" //Define macros for input and output pin etc.
+#include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc.
 #include <IRremote.hpp>
 
 //......................................................................
@@ -94,12 +94,6 @@
 //#define BOSE_CMD_ALARM_ON_OFF   0x22
 //#define BOSE_CMD_ALARM_WAKE_TO  0x70
 //#define BOSE_CMD_ALARM_TIME     0x23
-
-
-// On the Zero and others we switch explicitly to SerialUSB
-#if defined(ARDUINO_ARCH_SAMD)
-#define Serial SerialUSB
-#endif
 
 bool sPrintMenu;
 void printMenu();

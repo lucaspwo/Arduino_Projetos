@@ -27,12 +27,19 @@ using namespace std;
 // CE Pin uses GPIO number with BCM and SPIDEV drivers, other platforms use their own pin numbering
 // CS Pin addresses the SPI bus number at /dev/spidev<a>.<b>
 // ie: RF24 radio(<ce_pin>, <a>*10+<b>); spidev1.0 is 10, spidev1.1 is 11 etc..
-
+#define CSN_PIN 0
+#ifdef MRAA
+    #define CE_PIN 15 // GPIO22
+#elif defined(RF24_WIRINGPI)
+    #define CE_PIN 3 // GPIO22
+#else
+    #define CE_PIN 22
+#endif
 // Generic:
-RF24 radio(22, 0);
+RF24 radio(CE_PIN, CSN_PIN);
 /****************** Linux (BBB,x86,etc) ***********************/
 // See http://nRF24.github.io/RF24/pages.html for more information on usage
-// See http://iotdk.intel.com/docs/master/mraa/ for more information on MRAA
+// See https://github.com/eclipse/mraa/ for more information on MRAA
 // See https://www.kernel.org/doc/Documentation/spi/spidev for more information on SPIDEV
 
 // For this example, we'll be using 6 addresses; 1 for each TX node
@@ -40,13 +47,13 @@ RF24 radio(22, 0);
 // an identifying device destination
 // Notice that the last byte is the only byte that changes in the last 5
 // addresses. This is a limitation of the nRF24L01 transceiver for pipes 2-5
-// because they use the same first 4 bytes from pipe 1.
-uint64_t address[6] = {0x7878787878LL,
-                       0xB3B4B5B6F1LL,
-                       0xB3B4B5B6CDLL,
-                       0xB3B4B5B6A3LL,
-                       0xB3B4B5B60FLL,
-                       0xB3B4B5B605LL};
+// because they use the same first 4 MSBytes from pipe 1.
+uint8_t address[6][5] = {{0x78, 0x78, 0x78, 0x78, 0x78},
+                         {0xF1, 0xB6, 0xB5, 0xB4, 0xB3},
+                         {0xCD, 0xB6, 0xB5, 0xB4, 0xB3},
+                         {0xA3, 0xB6, 0xB5, 0xB4, 0xB3},
+                         {0x0F, 0xB6, 0xB5, 0xB4, 0xB3},
+                         {0x05, 0xB6, 0xB5, 0xB4, 0xB3}};
 
 // For this example, we'll be using a payload containing
 // a node ID number and a single integer number that will be incremented
@@ -66,7 +73,7 @@ void printHelp(string);    // prototype to function that explain CLI arg usage
 
 // custom defined timer for evaluating transmission time in microseconds
 struct timespec startTimer, endTimer;
-uint32_t getMicros(); // prototype to get ellapsed time in microseconds
+uint32_t getMicros(); // prototype to get elapsed time in microseconds
 
 int main(int argc, char** argv)
 {
@@ -174,9 +181,8 @@ void master(unsigned int role)
     payload.nodeID = role;
     payload.payloadID = 0;
 
-    // Set the address on pipe 0 to the RX node.
-    radio.stopListening(); // put radio in TX mode
-    radio.openWritingPipe(address[role]);
+    // set the TX address of the RX node for use on the TX pipe (pipe 0)
+    radio.stopListening(address[role]); // put radio in TX mode
 
     // According to the datasheet, the auto-retry features's delay value should
     // be "skewed" to allow the RX node to receive 1 transmission at a time.
@@ -187,7 +193,7 @@ void master(unsigned int role)
     while (failures < 6) {
         clock_gettime(CLOCK_MONOTONIC_RAW, &startTimer);      // start the timer
         bool report = radio.write(&payload, sizeof(payload)); // transmit & save the report
-        uint32_t timerEllapsed = getMicros();                 // end the timer
+        uint32_t timerElapsed = getMicros();                  // end the timer
 
         if (report) {
             // payload was delivered
@@ -195,7 +201,7 @@ void master(unsigned int role)
             cout << payload.payloadID;             // print payload number
             cout << " as node " << payload.nodeID; // print node number
             cout << " successful! Time to transmit = ";
-            cout << timerEllapsed << " us" << endl; // print the timer result
+            cout << timerElapsed << " us" << endl; // print the timer result
         }
         else {
             // payload was not delivered
@@ -225,7 +231,7 @@ void slave()
     time_t startTimer = time(nullptr);       // start a timer
     while (time(nullptr) - startTimer < 6) { // use 6 second timeout
         uint8_t pipe;
-        if (radio.available(&pipe)) {                             // is there a payload? get the pipe number that recieved it
+        if (radio.available(&pipe)) {                             // is there a payload? get the pipe number that received it
             uint8_t bytes = radio.getPayloadSize();               // get the size of the payload
             radio.read(&payload, bytes);                          // fetch payload from FIFO
             cout << "Received " << (unsigned int)bytes;           // print the size of the payload
@@ -239,7 +245,7 @@ void slave()
 } // slave
 
 /**
- * Calculate the ellapsed time in microseconds
+ * Calculate the elapsed time in microseconds
  */
 uint32_t getMicros()
 {

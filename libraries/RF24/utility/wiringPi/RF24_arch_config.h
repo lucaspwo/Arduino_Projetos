@@ -11,23 +11,19 @@
 
 #define RF24_LINUX
 
-#include <stddef.h>
+#include <stdint.h> // uint16_t
+#include <stdio.h>  // printf
+#include <string.h> // strlen
 #include "spi.h"
 #include "wiringPi.h"
-#include <stdint.h>
-#include <stdio.h>
-#include <time.h>
-#include <string.h>
-#include <sys/time.h>
 
 #define _BV(x) (1 << (x))
 #define _SPI   spi
 
-#undef SERIAL_DEBUG
-#ifdef SERIAL_DEBUG
-    #define IF_SERIAL_DEBUG(x) ({ x; })
+#ifdef RF24_DEBUG
+    #define IF_RF24_DEBUG(x) ({ x; })
 #else
-    #define IF_SERIAL_DEBUG(x)
+    #define IF_RF24_DEBUG(x)
 #endif
 
 // Avoid spurious warnings
@@ -39,13 +35,16 @@
 #endif
 
 typedef uint16_t prog_uint16_t;
+typedef uint8_t rf24_gpio_pin_t;
+#define RF24_PIN_INVALID 0xFF
+
 #define PSTR(x)  (x)
 #define printf_P printf
 #define strlen_P strlen
 #define PROGMEM
-#define pgm_read_word(p) (*(p))
+#define pgm_read_word(p) (*(const unsigned short*)(p))
 #define PRIPSTR          "%s"
-#define pgm_read_byte(p) (*(p))
-#define pgm_read_ptr(p)  (*(p))
+#define pgm_read_byte(p) (*(const unsigned char*)(p))
+#define pgm_read_ptr(p)  (*(void* const*)(p))
 
 #endif // RF24_UTILITY_WIRINGPI_RF24_ARCH_CONFIG_H_

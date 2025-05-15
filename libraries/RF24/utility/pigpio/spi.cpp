@@ -2,8 +2,8 @@
  *
  */
 
-#include "spi.h"
 #include <pigpio.h>
+#include "spi.h"
 
 SPI::SPI()
 {
@@ -16,7 +16,7 @@ void SPI::begin(int busNo, uint32_t spi_speed)
     }
     spiIsInitialized = true;
     gpioInitialise();
-    spiHandle = spiOpen(busNo, spi_speed, 0);
+    spiHandle = spiOpen((unsigned int)(busNo & 2), spi_speed, (unsigned int)((busNo / 10) << 7));
 }
 
 void SPI::init(uint32_t speed)
@@ -30,9 +30,9 @@ uint8_t SPI::transfer(char tx)
     return rbuf;
 }
 
-void SPI::transfernb(char* tbuf, char* rbuf, uint32_t len)
+void SPI::transfernb(char* txBuf, char* rxBuf, uint32_t len)
 {
-    spiXfer(spiHandle, tbuf, rbuf, len);
+    spiXfer(spiHandle, txBuf, rxBuf, len);
 }
 
 SPI::~SPI()

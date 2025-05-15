@@ -30,11 +30,10 @@
 #define _SPI SPI
 #define RF24_SPI_PTR
 
-#undef SERIAL_DEBUG
-#ifdef SERIAL_DEBUG
-    #define IF_SERIAL_DEBUG(x) ({ x; })
+#ifdef RF24_DEBUG
+    #define IF_RF24_DEBUG(x) ({ x; })
 #else
-    #define IF_SERIAL_DEBUG(x)
+    #define IF_RF24_DEBUG(x)
 #endif
 
 // Use the avr pgmspace commands
@@ -49,13 +48,16 @@
 //#endif
 
 typedef uint16_t prog_uint16_t;
+typedef uint16_t rf24_gpio_pin_t;
+#define RF24_PIN_INVALID 0xFFFF
+
 //#define PSTR(x) (x)
 //#define printf_P printf
 //#define strlen_P strlen
 //#define PROGMEM
-//#define pgm_read_word(p) (*(p))
+//#define pgm_read_word(p) (*(const unsigned short *)(p))
 #define PRIPSTR "%s"
-//#define pgm_read_byte(p) (*(p))
+//#define pgm_read_byte(p) (*(const unsigned char *)(p))
 
 // Function, constant map as a result of migrating from Arduino
 #define LOW                      GPIO::OUTPUT_LOW
@@ -64,7 +66,7 @@ typedef uint16_t prog_uint16_t;
 #define OUTPUT                   GPIO::DIRECTION_OUT
 #define digitalWrite(pin, value) GPIO::write(pin, value)
 #define pinMode(pin, direction)  GPIO::open(pin, direction)
-#define delay(milisec)           __msleep(milisec)
+#define delay(millisec)          __msleep(millisec)
 #define delayMicroseconds(usec)  __usleep(usec)
 #define millis()                 __millis()
 

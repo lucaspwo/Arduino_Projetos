@@ -22,22 +22,35 @@
 using namespace std;
 
 // We will be using the nRF24L01's IRQ pin for this example
-#define IRQ_PIN 12 // this needs to be a digital input capable pin
+#ifdef MRAA
+    #define IRQ_PIN 18 // GPIO24
+#elif defined(RF24_WIRINGPI)
+    #define IRQ_PIN 5 // GPIO24
+#else
+    #define IRQ_PIN 24 // GPIO24
+#endif
 
 // this example is a sequential program. so we need to wait for the event to be handled
-volatile bool wait_for_event = false; // used to signify that the event is handled
+volatile bool got_interrupt = false; // used to signify that the event started
 
 /****************** Linux ***********************/
 // Radio CE Pin, CSN Pin, SPI Speed
 // CE Pin uses GPIO number with BCM and SPIDEV drivers, other platforms use their own pin numbering
 // CS Pin addresses the SPI bus number at /dev/spidev<a>.<b>
 // ie: RF24 radio(<ce_pin>, <a>*10+<b>); spidev1.0 is 10, spidev1.1 is 11 etc..
-
+#define CSN_PIN 0
+#ifdef MRAA
+    #define CE_PIN 15 // GPIO22
+#elif defined(RF24_WIRINGPI)
+    #define CE_PIN 3 // GPIO22
+#else
+    #define CE_PIN 22
+#endif
 // Generic:
-RF24 radio(22, 0);
+RF24 radio(CE_PIN, CSN_PIN);
 /****************** Linux (BBB,x86,etc) ***********************/
 // See http://nRF24.github.io/RF24/pages.html for more information on usage
-// See http://iotdk.intel.com/docs/master/mraa/ for more information on MRAA
+// See https://github.com/eclipse/mraa/ for more information on MRAA
 // See https://www.kernel.org/doc/Documentation/spi/spidev for more information on SPIDEV
 
 // For this example, we'll be using a payload containing
@@ -96,8 +109,8 @@ int main(int argc, char** argv)
     // each other.
     radio.setPALevel(RF24_PA_LOW); // RF24_PA_MAX is default.
 
-    // set the TX address of the RX node into the TX pipe
-    radio.openWritingPipe(address[radioNumber]); // always uses pipe 0
+    // set the TX address of the RX node for use on the TX pipe (pipe 0)
+    radio.stopListening(address[radioNumber]);
 
     // set the RX address of the TX node into a RX pipe
     radio.openReadingPipe(1, address[!radioNumber]); // using pipe 1
@@ -161,22 +174,23 @@ void master()
 
     // Test the "data ready" event with the IRQ pin
     cout << "\nConfiguring IRQ pin to ignore the 'data sent' event\n";
-    radio.maskIRQ(true, false, false); // args = "data_sent", "data_fail", "data_ready"
-    cout << "   Pinging RX node for 'data ready' event...";
+    radio.setStatusFlags(RF24_RX_DR | RF24_TX_DF);
+    cout << "   Pinging RX node for 'data ready' event..." << endl;
     ping_n_wait(); // transmit a payload and detect the IRQ pin
     pl_iterator++; // increment iterator for next test
 
     // Test the "data sent" event with the IRQ pin
     cout << "\nConfiguring IRQ pin to ignore the 'data ready' event\n";
-    radio.maskIRQ(false, false, true); // args = "data_sent", "data_fail", "data_ready"
-    cout << "   Pinging RX node for 'data sent' event...";
+    radio.setStatusFlags(RF24_TX_DS | RF24_TX_DF);
+    cout << "   Pinging RX node for 'data sent' event..." << endl;
     radio.flush_tx(); // flush payloads from any failed prior test
     ping_n_wait();    // transmit a payload and detect the IRQ pin
     pl_iterator++;    // increment iterator for next test
 
     // Use this iteration to fill the RX node's FIFO which sets us up for the next test.
-    // write() uses virtual interrupt flags that work despite the masking of the IRQ pin
-    radio.maskIRQ(1, 1, 1); // disable IRQ masking for this step
+    // write() uses virtual interrupt flags that work despite the masking of the IRQ pin.
+    // disable IRQ pin for this step
+    radio.setStatusFlags();
 
     cout << "\nSending 1 payload to fill RX node's FIFO. IRQ pin is neglected.\n";
     // write() will call flush_tx() on 'data fail' events
@@ -190,8 +204,8 @@ void master()
 
     // test the "data fail" event with the IRQ pin
     cout << "\nConfiguring IRQ pin to reflect all events\n";
-    radio.maskIRQ(0, 0, 0); // args = "data_sent", "data_fail", "data_ready"
-    cout << "   Pinging inactive RX node for 'data fail' event...";
+    radio.setStatusFlags(RF24_IRQ_ALL);
+    cout << "   Pinging inactive RX node for 'data fail' event..." << endl;
     ping_n_wait(); // transmit a payload and detect the IRQ pin
 
     // CE pin is still HIGH which consumes more power. Example is now idling so...
@@ -210,7 +224,7 @@ void slave()
 {
 
     // let IRQ pin only trigger on "data_ready" event in RX mode
-    radio.maskIRQ(1, 1, 0); // args = "data_sent", "data_fail", "data_ready"
+    radio.setStatusFlags(RF24_RX_DR);
 
     // Fill the TX FIFO with 3 ACK payloads for the first 3 received
     // transmissions on pipe 0.
@@ -240,12 +254,17 @@ void slave()
  */
 void ping_n_wait()
 {
+    got_interrupt = false;
+
     // use the non-blocking call to write a payload and begin transmission
     // the "false" argument means we are expecting an ACK packet response
     radio.startFastWrite(tx_payloads[pl_iterator], tx_pl_size, false);
-
-    wait_for_event = true;
-    while (wait_for_event) {
+    uint32_t timer = millis();
+    while (!got_interrupt) {
+        if (millis() - timer > 500) {
+            cout << "\tIRQ NOT received" << endl;
+            break;
+        }
         /*
          * IRQ pin is LOW when activated. Otherwise it is always HIGH
          * Wait in this empty loop until IRQ pin is activated.
@@ -255,40 +274,40 @@ void ping_n_wait()
          * default, we don't need a timeout check to prevent an infinite loop.
          */
     }
-}
-
-/**
- * when the IRQ pin goes active LOW, call this fuction print out why
- */
-void interruptHandler()
-{
     // print IRQ status and all masking flags' states
 
     cout << "\tIRQ pin is actively LOW" << endl; // show that this function was called
 
-    bool tx_ds, tx_df, rx_dr;                // declare variables for IRQ masks
-    radio.whatHappened(tx_ds, tx_df, rx_dr); // get values for IRQ masks
-    // whatHappened() clears the IRQ masks also. This is required for
+    uint8_t flags = radio.clearStatusFlags();
+    // Resetting the tx_df flag is required for
     // continued TX operations when a transmission fails.
-    // clearing the IRQ masks resets the IRQ pin to its inactive state (HIGH)
+    // clearing the status flags resets the IRQ pin to its inactive state (HIGH)
 
-    cout << "\tdata_sent: " << tx_ds;          // print "data sent" mask state
-    cout << ", data_fail: " << tx_df;          // print "data fail" mask state
-    cout << ", data_ready: " << rx_dr << endl; // print "data ready" mask state
+    cout << "\t";
+    radio.printStatus(flags); // print StatusFlags description
 
-    if (tx_df)            // if TX payload failed
-        radio.flush_tx(); // clear all payloads from the TX FIFO
+    if (flags & RF24_TX_DF) // if TX payload failed
+        radio.flush_tx();   // clear all payloads from the TX FIFO
 
     // print if test passed or failed. Unintentional fails mean the RX node was not listening.
     if (pl_iterator == 0)
-        cout << "   'Data Ready' event test " << (rx_dr ? "passed" : "failed") << endl;
+        cout << "   'Data Ready' event test " << (flags & RF24_RX_DR ? "passed" : "failed") << endl;
     else if (pl_iterator == 1)
-        cout << "   'Data Sent' event test " << (tx_ds ? "passed" : "failed") << endl;
+        cout << "   'Data Sent' event test " << (flags & RF24_TX_DS ? "passed" : "failed") << endl;
     else if (pl_iterator == 3)
-        cout << "   'Data Fail' event test " << (tx_df ? "passed" : "failed") << endl;
+        cout << "   'Data Fail' event test " << (flags & RF24_TX_DF ? "passed" : "failed") << endl;
 
-    wait_for_event = false; // ready to continue
-} // interruptHandler
+    got_interrupt = false;
+}
+
+/**
+ * when the IRQ pin goes active LOW.
+ * Here we just set a flag to unblock ping_n_wait()
+ */
+void interruptHandler()
+{
+    got_interrupt = true; // ready to continue
+}
 
 /**
  * Print the entire RX FIFO with one buffer. This will also flush the RX FIFO.

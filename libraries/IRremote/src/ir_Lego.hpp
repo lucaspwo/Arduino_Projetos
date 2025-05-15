@@ -8,7 +8,7 @@
  ************************************************************************************
  * MIT License
  *
- * Copyright (c) 2020-2021 Armin Joachimsmeyer
+ * Copyright (c) 2020-2023 Armin Joachimsmeyer
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,11 +32,6 @@
 #ifndef _IR_LEGO_HPP
 #define _IR_LEGO_HPP
 
-#include <Arduino.h>
-
-//#define DEBUG // Activate this for lots of lovely debug output from this decoder.
-#include "IRremoteInt.h" // evaluates the DEBUG for IR_DEBUG_PRINT
-
 /** \addtogroup Decoder Decoders and encoders for different protocols
  * @{
  */
@@ -50,15 +45,16 @@
 // from LEGO Power Functions RC Manual 26.02.2010 Version 1.20
 // https://github.com/jurriaan/Arduino-PowerFunctions/raw/master/LEGO_Power_Functions_RC_v120.pdf
 // https://oberguru.net/elektronik/ir/codes/lego_power_functions_train.lircd.conf
+// For original LEGO receiver see: https://www.philohome.com/pfrec/pfrec.htm and https://www.youtube.com/watch?v=KCM4Ug1bPrM
 //
 // To ensure correct detection of IR messages six 38 kHz cycles are transmitted as mark.
-// Low bit consists of 6 cycles of IR and 10 “cycles” of pause,
-// high bit of 6 cycles IR and 21 “cycles” of pause and start bit of 6 cycles IR and 39 “cycles” of pause.
+// Low bit consists of 6 cycles of IR and 10 ï¿½cyclesï¿½ of pause,
+// high bit of 6 cycles IR and 21 ï¿½cyclesï¿½ of pause and start bit of 6 cycles IR and 39 ï¿½cyclesï¿½ of pause.
 // Low bit range 316 - 526 us
-// High bit range 526 – 947 us
-// Start/stop bit range 947 – 1579 us
+// High bit range 526 ï¿½ 947 us
+// Start/stop bit range 947 ï¿½ 1579 us
 // If tm is the maximum message length (16ms) and Ch is the channel number, then
-// The delay before transmitting the first message is: (4 – Ch)*tm
+// The delay before transmitting the first message is: (4 ï¿½ Ch)*tm
 // The time from start to start for the next 2 messages is: 5*tm
 // The time from start to start for the following messages is: (6 + 2*Ch)*tm
 // Supported Devices
@@ -83,15 +79,20 @@
 #define LEGO_AUTO_REPEAT_PERIOD_MIN 110000 // Every frame is auto repeated 5 times.
 #define LEGO_AUTO_REPEAT_PERIOD_MAX 230000 // space for channel 3
 
-/*
- * Compatibility function for legacy code, this calls the send raw data function
- */
-void IRsend::sendLegoPowerFunctions(uint16_t aRawData, bool aDoSend5Times) {
-    sendLegoPowerFunctions(aRawData, (aRawData >> (LEGO_MODE_BITS + LEGO_COMMAND_BITS + LEGO_PARITY_BITS)) & 0x3, aDoSend5Times);
-}
+#define LEGO_MODE_EXTENDED  0
+#define LEGO_MODE_COMBO     1
+#define LEGO_MODE_SINGLE    0x4 // here the 2 LSB have meanings like Output A / Output B
 
+struct PulseDistanceWidthProtocolConstants LegoProtocolConstants = { LEGO_PF, 38, LEGO_HEADER_MARK, LEGO_HEADER_SPACE, LEGO_BIT_MARK,
+LEGO_ONE_SPACE, LEGO_BIT_MARK, LEGO_ZERO_SPACE, PROTOCOL_IS_LSB_FIRST, (LEGO_AUTO_REPEAT_PERIOD_MIN
+        / MICROS_IN_ONE_MILLI), NULL };
+
+/************************************
+ * Start of send and decode functions
+ ************************************/
 /*
  * Here we process the structured data, and call the send raw data function
+ * @param aMode one of LEGO_MODE_EXTENDED, LEGO_MODE_COMBO, LEGO_MODE_SINGLE
  */
 void IRsend::sendLegoPowerFunctions(uint8_t aChannel, uint8_t aCommand, uint8_t aMode, bool aDoSend5Times) {
     aChannel &= 0x0F; // allow toggle and escape bits too
@@ -117,9 +118,8 @@ void IRsend::sendLegoPowerFunctions(uint16_t aRawData, uint8_t aChannel, bool aD
     }
 // required for repeat timing, see http://www.hackvandedam.nl/blog/?page_id=559
     uint8_t tRepeatPeriod = (LEGO_AUTO_REPEAT_PERIOD_MIN / MICROS_IN_ONE_MILLI) + (aChannel * 40); // from 110 to 230
-
-    sendPulseDistanceWidth(38, LEGO_HEADER_MARK, LEGO_HEADER_SPACE, LEGO_BIT_MARK, LEGO_ONE_SPACE, LEGO_BIT_MARK, LEGO_ZERO_SPACE,
-            aRawData, LEGO_BITS, PROTOCOL_IS_MSB_FIRST, SEND_STOP_BIT, tRepeatPeriod, tNumberOfRepeats);
+    LegoProtocolConstants.RepeatPeriodMillis = tRepeatPeriod;
+    sendPulseDistanceWidth(&LegoProtocolConstants, aRawData, LEGO_BITS, tNumberOfRepeats);
 }
 
 /*
@@ -127,28 +127,20 @@ void IRsend::sendLegoPowerFunctions(uint16_t aRawData, uint8_t aChannel, bool aD
  */
 bool IRrecv::decodeLegoPowerFunctions() {
 
-    // Check header "mark"
-    if (!matchMark(decodedIRData.rawDataPtr->rawbuf[1], LEGO_HEADER_MARK)) {
-        // no debug output, since this check is mainly to determine the received protocol
+    if (!checkHeader(&LegoProtocolConstants)) {
         return false;
     }
 
     // Check we have enough data - +4 for initial gap, start bit mark and space + stop bit mark
-    if (decodedIRData.rawDataPtr->rawlen != (2 * LEGO_BITS) + 4) {
+    if (decodedIRData.rawlen != (2 * LEGO_BITS) + 4) {
         IR_DEBUG_PRINT(F("LEGO: "));
         IR_DEBUG_PRINT(F("Data length="));
         IR_DEBUG_PRINT(decodedIRData.rawDataPtr->rawlen);
         IR_DEBUG_PRINTLN(F(" is not 36"));
         return false;
     }
-    // Check header "space"
-    if (!matchSpace(decodedIRData.rawDataPtr->rawbuf[2], LEGO_HEADER_SPACE)) {
-        IR_DEBUG_PRINT(F("LEGO: "));
-        IR_DEBUG_PRINTLN(F("Header space length is wrong"));
-        return false;
-    }
 
-    if (!decodePulseDistanceData(LEGO_BITS, 3, LEGO_BIT_MARK, LEGO_ONE_SPACE, LEGO_ZERO_SPACE, PROTOCOL_IS_MSB_FIRST)) {
+    if (!decodePulseDistanceWidthData(&LegoProtocolConstants, LEGO_BITS)) {
         IR_DEBUG_PRINT(F("LEGO: "));
         IR_DEBUG_PRINTLN(F("Decode failed"));
         return false;
@@ -195,15 +187,23 @@ bool IRrecv::decodeLegoPowerFunctions() {
     /*
      * Check for autorepeat (should happen 4 times for one press)
      */
-    if (decodedIRData.rawDataPtr->rawbuf[0] < (LEGO_AUTO_REPEAT_PERIOD_MAX / MICROS_PER_TICK)) {
+    if (decodedIRData.initialGapTicks < (LEGO_AUTO_REPEAT_PERIOD_MAX / MICROS_PER_TICK)) {
         decodedIRData.flags |= IRDATA_FLAGS_IS_AUTO_REPEAT;
     }
     decodedIRData.address = tToggleEscapeChannel;
     decodedIRData.command = tData | tMode << LEGO_COMMAND_BITS;
-    decodedIRData.protocol = LEGO_PF;
     decodedIRData.numberOfBits = LEGO_BITS;
+    decodedIRData.protocol = LEGO_PF;
 
     return true;
+}
+
+/*********************************************************************************
+ * Old deprecated functions, kept for backward compatibility to old 2.0 tutorials
+ *********************************************************************************/
+
+void IRsend::sendLegoPowerFunctions(uint16_t aRawData, bool aDoSend5Times) {
+    sendLegoPowerFunctions(aRawData, (aRawData >> (LEGO_MODE_BITS + LEGO_COMMAND_BITS + LEGO_PARITY_BITS)) & 0x3, aDoSend5Times);
 }
 
 /** @}*/

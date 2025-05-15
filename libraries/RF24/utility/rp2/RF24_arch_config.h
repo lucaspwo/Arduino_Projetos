@@ -28,24 +28,25 @@
 #define _SPI   SPI
 #define RF24_SPI_PTR
 
-static SPI spi;
-
-#ifdef SERIAL_DEBUG
-    #define IF_SERIAL_DEBUG(x) ({ x; })
+#ifdef RF24_DEBUG
+    #define IF_RF24_DEBUG(x) ({ x; })
 #else
-    #define IF_SERIAL_DEBUG(x)
+    #define IF_RF24_DEBUG(x)
 #endif
 
 typedef uint16_t prog_uint16_t;
+typedef uint8_t rf24_gpio_pin_t;
+#define RF24_PIN_INVALID 0xFF
+
 #define PSTR(x)  (x)
 #define printf_P printf
 #define strlen_P strlen
 #define PROGMEM
-#define pgm_read_word(p) (*(p))
+#define pgm_read_word(p) (*(const unsigned short*)(p))
 #define PRIPSTR          "%s"
-#define pgm_read_byte(p) (*(p))
+#define pgm_read_byte(p) (*(const unsigned char*)(p))
 
-#define pgm_read_ptr(p) (*(p))
+#define pgm_read_ptr(p) (*(void* const*)(p))
 
 // Function, constant map as a result of migrating from Arduino
 #define LOW                      GPIO::OUTPUT_LOW
@@ -54,7 +55,7 @@ typedef uint16_t prog_uint16_t;
 #define OUTPUT                   GPIO::DIRECTION_OUT
 #define digitalWrite(pin, value) GPIO::write(pin, value)
 #define pinMode(pin, direction)  GPIO::open(pin, direction)
-#define delay(milisec)           sleep_ms(milisec)
+#define delay(millisec)          sleep_ms(millisec)
 #define delayMicroseconds(usec)  sleep_us(usec)
 #define millis()                 to_ms_since_boot(get_absolute_time())
 

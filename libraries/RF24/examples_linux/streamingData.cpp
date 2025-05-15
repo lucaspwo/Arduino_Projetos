@@ -25,12 +25,19 @@ using namespace std;
 // CE Pin uses GPIO number with BCM and SPIDEV drivers, other platforms use their own pin numbering
 // CS Pin addresses the SPI bus number at /dev/spidev<a>.<b>
 // ie: RF24 radio(<ce_pin>, <a>*10+<b>); spidev1.0 is 10, spidev1.1 is 11 etc..
-
+#define CSN_PIN 0
+#ifdef MRAA
+    #define CE_PIN 15 // GPIO22
+#elif defined(RF24_WIRINGPI)
+    #define CE_PIN 3 // GPIO22
+#else
+    #define CE_PIN 22
+#endif
 // Generic:
-RF24 radio(22, 0);
+RF24 radio(CE_PIN, CSN_PIN);
 /****************** Linux (BBB,x86,etc) ***********************/
 // See http://nRF24.github.io/RF24/pages.html for more information on usage
-// See http://iotdk.intel.com/docs/master/mraa/ for more information on MRAA
+// See https://github.com/eclipse/mraa/ for more information on MRAA
 // See https://www.kernel.org/doc/Documentation/spi/spidev for more information on SPIDEV
 
 // For this example, we'll be sending 32 payloads each containing
@@ -47,7 +54,7 @@ void printHelp(string);    // prototype to function that explain CLI arg usage
 
 // custom defined timer for evaluating transmission time in microseconds
 struct timespec startTimer, endTimer;
-uint32_t getMicros(); // prototype to get ellapsed time in microseconds
+uint32_t getMicros(); // prototype to get elapsed time in microseconds
 
 int main(int argc, char** argv)
 {
@@ -142,8 +149,8 @@ int main(int argc, char** argv)
     // each other.
     radio.setPALevel(RF24_PA_LOW); // RF24_PA_MAX is default.
 
-    // set the TX address of the RX node into the TX pipe
-    radio.openWritingPipe(address[radioNumber]); // always uses pipe 0
+    // set the TX address of the RX node for use on the TX pipe (pipe 0)
+    radio.stopListening(address[radioNumber]);
 
     // set the RX address of the TX node into a RX pipe
     radio.openReadingPipe(1, address[!radioNumber]); // using pipe 1
@@ -201,8 +208,16 @@ void master()
     while (i < SIZE) {
         makePayload(i);
         if (!radio.writeFast(&buffer, SIZE)) {
-            failures++;
-            radio.reUseTX();
+            uint8_t flags = radio.getStatusFlags();
+            if (flags & RF24_TX_DF) {
+                failures++;
+                // failed to transmit a previous payload.
+                // Now we need to reset the tx_df flag and the CE pin
+                radio.ce(LOW);
+                radio.clearStatusFlags(RF24_TX_DF);
+                radio.ce(HIGH);
+            }
+            // else the TX FIFO is full; just continue loop
         }
         else {
             i++;
@@ -214,10 +229,11 @@ void master()
             cout << "Aborting at payload " << buffer[0];
             break;
         }
-    }                                    // while
-    uint32_t ellapsedTime = getMicros(); // end the timer
+    } // while
+
+    uint32_t elapsedTime = getMicros(); // end the timer
     cout << "Time to transmit data = ";
-    cout << ellapsedTime;        // print the timer result
+    cout << elapsedTime;         // print the timer result
     cout << " us. " << failures; // print number of retries
     cout << " failures detected. Leaving TX role." << endl;
 } // master
@@ -233,10 +249,10 @@ void slave()
     time_t startTimer = time(nullptr);        // start a timer
     while (time(nullptr) - startTimer < 6) {  // use 6 second timeout
         if (radio.available()) {              // is there a payload
+            counter++;                        // increment counter
             radio.read(&buffer, SIZE);        // fetch payload from FIFO
             cout << "Received: " << buffer;   // print the payload's value
             cout << " - " << counter << endl; // print the counter
-            counter++;                        // increment counter
             startTimer = time(nullptr);       // reset timer
         }
     }
@@ -263,7 +279,7 @@ void makePayload(uint8_t i)
 }
 
 /**
- * Calculate the ellapsed time in microseconds
+ * Calculate the elapsed time in microseconds
  */
 uint32_t getMicros()
 {

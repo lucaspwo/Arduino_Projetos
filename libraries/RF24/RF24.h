@@ -12,8 +12,8 @@
  * Class declaration for RF24 and helper enums
  */
 
-#ifndef __RF24_H__
-#define __RF24_H__
+#ifndef RF24_H_
+#define RF24_H_
 
 #include "RF24_config.h"
 
@@ -110,6 +110,50 @@ typedef enum
 
 /**
  * @}
+ * @defgroup fifoState FIFO state
+ * The state of a single FIFO (RX or TX).
+ * Remember, each FIFO has a maximum occupancy of 3 payloads.
+ * @see RF24::isFifo()
+ * @{
+ */
+typedef enum
+{
+    /// @brief The FIFO is not full nor empty, but it is occupied with 1 or 2 payloads.
+    RF24_FIFO_OCCUPIED,
+    /// @brief The FIFO is empty.
+    RF24_FIFO_EMPTY,
+    /// @brief The FIFO is full.
+    RF24_FIFO_FULL,
+    /// @brief Represents corruption of data over SPI (when observed).
+    RF24_FIFO_INVALID,
+} rf24_fifo_state_e;
+
+/**
+ * @}
+ * @defgroup StatusFlags Status flags
+ * @{
+ */
+
+/**
+ * @brief An enumeration of constants used to configure @ref StatusFlags
+ */
+typedef enum
+{
+#include "nRF24L01.h"
+    /// An alias of `0` to describe no IRQ events enabled.
+    RF24_IRQ_NONE = 0,
+    /// Represents an event where TX Data Failed to send.
+    RF24_TX_DF = 1 << MASK_MAX_RT,
+    /// Represents an event where TX Data Sent successfully.
+    RF24_TX_DS = 1 << TX_DS,
+    /// Represents an event where RX Data is Ready to `RF24::read()`.
+    RF24_RX_DR = 1 << RX_DR,
+    /// Equivalent to `RF24_RX_DR | RF24_TX_DS | RF24_TX_DF`.
+    RF24_IRQ_ALL = (1 << MASK_MAX_RT) | (1 << TX_DS) | (1 << RX_DR),
+} rf24_irq_flags_e;
+
+/**
+ * @}
  * @brief Driver class for nRF24L01(+) 2.4GHz Wireless Transceiver
  */
 class RF24
@@ -121,19 +165,16 @@ private:
     SPIUARTClass uspi;
 #endif
 
-#if defined(RF24_LINUX) || defined(XMEGA_D3) || defined(RF24_RP2) /* XMEGA can use SPI class */
+#if defined(RF24_LINUX) || defined(XMEGA_D3) /* XMEGA can use SPI class */
     SPI spi;
 #endif // defined (RF24_LINUX) || defined (XMEGA_D3)
 #if defined(RF24_SPI_PTR)
     _SPI* _spi;
 #endif // defined (RF24_SPI_PTR)
-#if defined(MRAA)
-    GPIO gpio;
-#endif
 
-    uint16_t ce_pin;    /* "Chip Enable" pin, activates the RX or TX role */
-    uint16_t csn_pin;   /* SPI Chip select */
-    uint32_t spi_speed; /* SPI Bus Speed */
+    rf24_gpio_pin_t ce_pin;  /* "Chip Enable" pin, activates the RX or TX role */
+    rf24_gpio_pin_t csn_pin; /* SPI Chip select */
+    uint32_t spi_speed;      /* SPI Bus Speed */
 #if defined(RF24_LINUX) || defined(XMEGA_D3) || defined(RF24_RP2)
     uint8_t spi_rxbuff[32 + 1]; //SPI receive buffer (payload max 32 bytes)
     uint8_t spi_txbuff[32 + 1]; //SPI transmit buffer (payload max 32 bytes + 1 byte for the command)
@@ -141,6 +182,7 @@ private:
     uint8_t status;                   /* The status byte returned from every SPI transaction */
     uint8_t payload_size;             /* Fixed size of payloads */
     uint8_t pipe0_reading_address[5]; /* Last address set on pipe 0 for reading. */
+    uint8_t pipe0_writing_address[5]; /* Last address set on pipe 0 for writing. */
     uint8_t config_reg;               /* For storing the value of the NRF_CONFIG register */
     bool _is_p_variant;               /* For storing the result of testing the toggleFeatures() affect */
     bool _is_p0_rx;                   /* For keeping track of pipe 0's usage in user-triggered RX mode. */
@@ -198,22 +240,24 @@ public:
      *
      * See [Related Pages](pages.html) for device specific information
      *
-     * @param _cepin The pin attached to Chip Enable on the RF module
+     * @param _cepin The pin attached to Chip Enable on the RF module.
+     * Review our [Linux general](rpi_general.md) doc for details about selecting pin numbers on Linux systems.
      * @param _cspin The pin attached to Chip Select (often labeled CSN) on the radio module.
      * - For the Arduino Due board, the [Arduino Due extended SPI feature](https://www.arduino.cc/en/Reference/DueExtendedSPI)
-     * is not supported. This means that the Due's pins 4, 10, or 52 are not mandated options (can use any digital output pin) for the radio's CSN pin.
+     * is not supported. This means that the Due's pins 4, 10, or 52 are not mandated options (can use any digital output pin) for
+     * the radio's CSN pin.
      * @param _spi_speed The SPI speed in Hz ie: 1000000 == 1Mhz
      * - Users can specify default SPI speed by modifying @ref RF24_SPI_SPEED in @ref RF24_config.h
      *     - For Arduino, the default SPI speed will only be properly configured this way on devices supporting SPI TRANSACTIONS
      *     - Older/Unsupported Arduino devices will use a default clock divider & settings configuration
      *     - For Linux: The old way of setting SPI speeds using BCM2835 driver enums has been removed as of v1.3.7
      */
-    RF24(uint16_t _cepin, uint16_t _cspin, uint32_t _spi_speed = RF24_SPI_SPEED);
+    RF24(rf24_gpio_pin_t _cepin, rf24_gpio_pin_t _cspin, uint32_t _spi_speed = RF24_SPI_SPEED);
 
     /**
      * A constructor for initializing the radio's hardware dynamically
-     * @warning You MUST use begin(uint16_t, uint16_t) or begin(_SPI*, uint16_t, uint16_t) to pass both the digital output pin
-     * numbers connected to the radio's CE and CSN pins.
+     * @warning You MUST use begin(rf24_gpio_pin_t, rf24_gpio_pin_t) or begin(_SPI*, rf24_gpio_pin_t, rf24_gpio_pin_t) to pass both the
+     * digital output pin numbers connected to the radio's CE and CSN pins.
      * @param _spi_speed The SPI speed in Hz ie: 1000000 == 1Mhz
      * - Users can specify default SPI speed by modifying @ref RF24_SPI_SPEED in @ref RF24_config.h
      *     - For Arduino, the default SPI speed will only be properly configured this way on devices supporting SPI TRANSACTIONS
@@ -254,7 +298,7 @@ public:
      * @param spiBus A pointer or reference to an instantiated SPI bus object.
      * The `_SPI` datatype is a "wrapped" definition that will represent
      * various SPI implementations based on the specified platform.
-     * @see Review the [Arduino support page](md_docs_arduino.html).
+     * @see Review the [Arduino support page](arduino.md).
      *
      * @return same result as begin()
      */
@@ -272,16 +316,17 @@ public:
      * @param spiBus A pointer or reference to an instantiated SPI bus object.
      * The `_SPI` datatype is a "wrapped" definition that will represent
      * various SPI implementations based on the specified platform.
-     * @param _cepin The pin attached to Chip Enable on the RF module
+     * @param _cepin The pin attached to Chip Enable on the RF module.
+     * Review our [Linux general](rpi_general.md) doc for details about selecting pin numbers on Linux systems.
      * @param _cspin The pin attached to Chip Select (often labeled CSN) on the radio module.
      * - For the Arduino Due board, the [Arduino Due extended SPI feature](https://www.arduino.cc/en/Reference/DueExtendedSPI)
      * is not supported. This means that the Due's pins 4, 10, or 52 are not mandated options (can use any digital output pin) for the radio's CSN pin.
      *
-     * @see Review the [Arduino support page](md_docs_arduino.html).
+     * @see Review the [Arduino support page](arduino.md).
      *
      * @return same result as begin()
      */
-    bool begin(_SPI* spiBus, uint16_t _cepin, uint16_t _cspin);
+    bool begin(_SPI* spiBus, rf24_gpio_pin_t _cepin, rf24_gpio_pin_t _cspin);
 #endif // defined (RF24_SPI_PTR) || defined (DOXYGEN_FORCED)
 
     /**
@@ -293,7 +338,7 @@ public:
      * is not supported. This means that the Due's pins 4, 10, or 52 are not mandated options (can use any digital output pin) for the radio's CSN pin.
      * @return same result as begin()
      */
-    bool begin(uint16_t _cepin, uint16_t _cspin);
+    bool begin(rf24_gpio_pin_t _cepin, rf24_gpio_pin_t _cspin);
 
     /**
      * Checks if the chip is connected to the SPI bus
@@ -331,11 +376,18 @@ public:
      * radio.write(&data, sizeof(data));
      * @endcode
      *
-     * @note When the ACK payloads feature is enabled, the TX FIFO buffers are
+     * @warning When the ACK payloads feature is enabled, the TX FIFO buffers are
      * flushed when calling this function. This is meant to discard any ACK
      * payloads that were not appended to acknowledgment packets.
      */
     void stopListening(void);
+
+    /**
+     * @brief Similar to startListening(void) but changes the TX address.
+     * @param txAddress The new TX address.
+     * This value will be cached for auto-ack purposes.
+     */
+    void stopListening(const uint8_t* txAddress);
 
     /**
      * Check whether there are bytes available to be read
@@ -353,13 +405,13 @@ public:
      * that received the next available payload. According to the datasheet,
      * the data about the pipe number that received the next available payload
      * is "unreliable" during a FALLING transition on the IRQ pin. This means
-     * you should call whatHappened() before calling this function
+     * you should call clearStatusFlags() before calling this function
      * during an ISR (Interrupt Service Routine). For example:
      * @code
      * void isrCallbackFunction() {
      *   bool tx_ds, tx_df, rx_dr;
-     *   radio.whatHappened(tx_ds, tx_df, rx_dr); // resets the IRQ pin to HIGH
-     *   radio.available();                       // returned data should now be reliable
+     *   uint8_t flags = radio.clearStatusFlags(); // resets the IRQ pin to HIGH
+     *   radio.available();                        // returned data should now be reliable
      * }
      *
      * void setup() {
@@ -474,6 +526,8 @@ public:
      * New: Open a pipe for writing via byte array. Old addressing format retained
      * for compatibility.
      *
+     * @deprecated Use `RF24::stopListening(uint8_t*)` instead.
+     *
      * Only one writing pipe can be opened at once, but this function changes
      * the address that is used to transmit (ACK payloads/packets do not apply
      * here). Be sure to call stopListening() prior to calling this function.
@@ -502,10 +556,13 @@ public:
      * @see
      * - setAddressWidth()
      * - startListening()
+     * - stopListening()
      *
      * @param address The address to be used for outgoing transmissions (uses
      * pipe 0). Coordinate this address amongst other receiving nodes (the
-     * pipe numbers don't need to match).
+     * pipe numbers don't need to match). This address is cached to ensure proper
+     * auto-ack behavior; stopListening() will always restore the latest cached TX
+     * address.
      *
      * @remark There is no address length parameter because this function will
      * always write the number of bytes that the radio addresses are configured
@@ -569,20 +626,46 @@ public:
     /**@{*/
 
     /**
+     * Set radio's CE (Chip Enable) pin state.
+     *
+     * @warning Please see the datasheet for a much more detailed description of this pin.
+     *
+     * @note This is only publicly exposed for advanced use cases such as complex networking or
+     * streaming consecutive payloads without robust error handling.
+     * Typical uses are satisfied by simply using `startListening()` for RX mode or
+     * `stopListening()` and `write()` for TX mode.
+     *
+     * @param level In RX mode, `HIGH` causes the radio to begin actively listening.
+     * In TX mode, `HIGH` (+ 130 microsecond delay) causes the radio to begin transmitting.
+     * Setting this to `LOW` will cause the radio to stop transmitting or receiving in any mode.
+     */
+    void ce(bool level);
+
+    /**
      * Print a giant block of debugging information to stdout
      *
      * @warning Does nothing if stdout is not defined.  See fdevopen in stdio.h
      * The printf.h file is included with the library for Arduino.
      * @code
      * #include <printf.h>
-     * setup(){
+     * setup() {
      *   Serial.begin(115200);
      *   printf_begin();
-     *   ...
+     *   // ...
      * }
      * @endcode
      */
     void printDetails(void);
+
+    /**
+     * Decode and print the given STATUS byte to stdout.
+     *
+     * @param flags The STATUS byte to print.
+     * This value is fetched with update() or getStatusFlags().
+     *
+     * @warning Does nothing if stdout is not defined.  See fdevopen in stdio.h
+     */
+    void printStatus(uint8_t flags);
 
     /**
      * Print a giant block of debugging information to stdout. This function
@@ -595,7 +678,7 @@ public:
      * The printf.h file is included with the library for Arduino.
      * @code
      * #include <printf.h>
-     * setup(){
+     * setup() {
      *   Serial.begin(115200);
      *   printf_begin();
      *   // ...
@@ -661,10 +744,10 @@ public:
      *
      * This function is not available in the python wrapper because it is intended for
      * use on processors with very limited available resources.
-     * 
+     *
      * @remark
      * This function uses much less ram than other `*print*Details()` methods.
-     * 
+     *
      * @code
      * uint8_t encoded_details[43] = {0};
      * radio.encodeRadioDetails(encoded_details);
@@ -673,7 +756,7 @@ public:
      * @param encoded_status The uint8_t array that RF24 radio details are
      * encoded into. This array must be at least 43 bytes in length; any less would surely
      * cause undefined behavior.
-     * 
+     *
      * Registers names and/or data corresponding to the index of the `encoded_details` array:
      * | index | register/data |
      * |------:|:--------------|
@@ -745,14 +828,13 @@ public:
      *
      * @warning According to the datasheet, the data saved to `pipe_num` is
      * "unreliable" during a FALLING transition on the IRQ pin. This means you
-     * should call whatHappened() before calling this function during
+     * should call clearStatusFlags() before calling this function during
      * an ISR (Interrupt Service Routine). For example:
      * @code
      * void isrCallbackFunction() {
-     *   bool tx_ds, tx_df, rx_dr;
-     *   radio.whatHappened(tx_ds, tx_df, rx_dr); // resets the IRQ pin to HIGH
-     *   uint8_t pipe;                            // initialize pipe data
-     *   radio.available(&pipe);                  // pipe data should now be reliable
+     *   radio.clearStatusFlags(); // resets the IRQ pin to inactive HIGH
+     *   uint8_t pipe = 7;         // initialize pipe data
+     *   radio.available(&pipe);   // pipe data should now be reliable
      * }
      *
      * void setup() {
@@ -786,14 +868,18 @@ public:
 
     /**
      * @param about_tx `true` focuses on the TX FIFO, `false` focuses on the RX FIFO
-     * @return 
-     * - `0` if the specified FIFO is neither full nor empty.
-     * - `1` if the specified FIFO is empty.
-     * - `2` if the specified FIFO is full.
+     * @return
+     * - @ref RF24_FIFO_OCCUPIED (`0`) if the specified FIFO is neither full nor empty.
+     * - @ref RF24_FIFO_EMPTY (`1`) if the specified FIFO is empty.
+     * - @ref RF24_FIFO_FULL (`2`) if the specified FIFO is full.
+     * - @ref RF24_FIFO_INVALID (`3`) if the data fetched over SPI was malformed.
      */
-    uint8_t isFifo(bool about_tx);
+    rf24_fifo_state_e isFifo(bool about_tx);
 
-    /** 
+    /**
+     * @deprecated Use RF24::isFifo(bool about_tx) instead.
+     * See our [migration guide](migration.md) to understand what you should update in your code.
+     *
      * @param about_tx `true` focuses on the TX FIFO, `false` focuses on the RX FIFO
      * @param check_empty
      * - `true` checks if the specified FIFO is empty
@@ -866,13 +952,17 @@ public:
 
     /**
      * This will not block until the 3 FIFO buffers are filled with data.
-     * Once the FIFOs are full, writeFast will simply wait for success or
-     * timeout, and return 1 or 0 respectively. From a user perspective, just
-     * keep trying to send the same data. The library will keep auto retrying
-     * the current payload using the built in functionality.
-     * @warning It is important to never keep the nRF24L01 in TX mode and FIFO full for more than 4ms at a time. If the auto
+     * Once the FIFOs are full, writeFast() will simply wait for a buffer to
+     * become available or a transmission failure (returning `true` or `false`
+     * respectively).
+     *
+     * @warning
+     * @parblock
+     * It is important to never keep the nRF24L01 in TX mode and FIFO full for more than 4ms at a time. If the auto
      * retransmit is enabled, the nRF24L01 is never in TX mode long enough to disobey this rule. Allow the FIFO
      * to clear by issuing txStandBy() or ensure appropriate time between transmissions.
+     *
+     * Use txStandBy() when this function returns `false`.
      *
      * Example (Partial blocking):
      * @code
@@ -882,8 +972,10 @@ public:
      * radio.writeFast(&buf,32);  // Writes 1 payload to the buffers
      * txStandBy(1000);		   // Using extended timeouts, returns 1 if success. Retries failed payloads for 1 seconds before returning 0.
      * @endcode
+     * @endparblock
      *
      * @see
+     * - setAutoAck()
      * - txStandBy()
      * - write()
      * - writeBlocking()
@@ -891,12 +983,10 @@ public:
      * @param buf Pointer to the data to be sent
      * @param len Number of bytes to be sent
      * @return
-     * - `true` if the payload was delivered successfully and an acknowledgement
-     *   (ACK packet) was received. If auto-ack is disabled, then any attempt
-     *   to transmit will also return true (even if the payload was not
-     *   received).
-     * - `false` if the payload was sent but was not acknowledged with an ACK
-     *   packet. This condition can only be reported if the auto-ack feature
+     * - `true` if the payload passed to `buf` was loaded in the TX FIFO.
+     * - `false` if the payload passed to `buf` was not loaded in the TX FIFO
+     *   because a previous payload already in the TX FIFO failed to
+     *   transmit. This condition can only be reported if the auto-ack feature
      *   is on.
      *
      * @note The `len` parameter must be omitted when using the python
@@ -911,11 +1001,18 @@ public:
     bool writeFast(const void* buf, uint8_t len);
 
     /**
-     * WriteFast for single NOACK writes. Optionally disable
-     * acknowledgements/auto-retries for a single payload using the
-     * multicast parameter set to true.
+     * Similar to writeFast(const void*, uint8_t) but allows for single NOACK writes.
+     * Optionally disable acknowledgements/auto-retries for a single payload using the
+     * multicast parameter set to `true`.
      *
-     * @see setAutoAck()
+     * @warning If the auto-ack feature is enabled, then it is strongly encouraged to call
+     * txStandBy() when this function returns `false`.
+     *
+     * @see
+     * - setAutoAck()
+     * - txStandBy()
+     * - write()
+     * - writeBlocking()
      *
      * @param buf Pointer to the data to be sent
      * @param len Number of bytes to be sent
@@ -927,7 +1024,7 @@ public:
      * - `false` if the payload passed to `buf` was not loaded in the TX FIFO
      *   because a previous payload already in the TX FIFO failed to
      *   transmit. This condition can only be reported if the auto-ack feature
-     *   is on.
+     *   is on (and the multicast parameter is set to false).
      *
      * @note The `len` parameter must be omitted when using the python
      * wrapper because the length of the payload is determined automatically.
@@ -1090,36 +1187,68 @@ public:
     bool writeAckPayload(uint8_t pipe, const void* buf, uint8_t len);
 
     /**
-     * Call this when you get an Interrupt Request (IRQ) to find out why
+     * Clear the Status flags that caused an interrupt event.
      *
-     * This function describes what event triggered the IRQ pin to go active
-     * LOW and clears the status of all events.
+     * @remark This function is similar to `whatHappened()` because it also returns the
+     * Status flags that caused the interrupt event. However, this function returns
+     * a STATUS byte instead of bit-banging into 3 1-byte booleans
+     * passed by reference.
      *
-     * @see maskIRQ()
+     * @note When used in an ISR (Interrupt Service routine), there is a chance that the
+     * returned bits 0b1110 (rx_pipe number) is inaccurate. See available(uint8_t*) (or the
+     * datasheet) for more detail.
      *
-     * @param[out] tx_ok The transmission attempt completed (TX_DS). This does
-     * not imply that the transmitted data was received by another radio, rather
-     * this only reports if the attempt to send was completed. This will
-     * always be `true` when the auto-ack feature is disabled.
-     * @param[out] tx_fail The transmission failed to be acknowledged, meaning
-     * too many retries (MAX_RT) were made while expecting an ACK packet. This
-     * event is only triggered when auto-ack feature is enabled.
-     * @param[out] rx_ready There is a newly received payload (RX_DR) saved to
-     * RX FIFO buffers. Remember that the RX FIFO can only hold up to 3
-     * payloads. Once the RX FIFO is full, all further received transmissions
-     * are rejected until there is space to save new data in the RX FIFO
-     * buffers.
+     * @param flags The IRQ flags to clear. Default value is all of them (`RF24_IRQ_ALL`).
+     * Multiple flags can be cleared by OR-ing rf24_irq_flags_e values together.
      *
-     * @note This function expects no parameters in the python wrapper.
-     * Instead, this function returns a 3 item tuple describing the IRQ
-     * events' status. To use this function in the python wrapper:
-     * @code{.py}
-     * # let`radio` be the instantiated RF24 object
-     * tx_ds, tx_df, rx_dr = radio.whatHappened()  # get IRQ status flags
-     * print("tx_ds: {}, tx_df: {}, rx_dr: {}".format(tx_ds, tx_df, rx_dr))
-     * @endcode
+     * @returns The STATUS byte from the radio's register before it was modified. Use
+     * enumerations of rf24_irq_flags_e as masks to interpret the STATUS byte's meaning(s).
+     *
+     * @ingroup StatusFlags
      */
-    void whatHappened(bool& tx_ok, bool& tx_fail, bool& rx_ready);
+    uint8_t clearStatusFlags(uint8_t flags = RF24_IRQ_ALL);
+
+    /**
+     * Set which flags shall be reflected on the radio's IRQ pin.
+     *
+     * @remarks This function is similar to maskIRQ() but with less confusing parameters.
+     *
+     * @param flags A value of rf24_irq_flags_e to influence the radio's IRQ pin.
+     * The default value (`RF24_IRQ_NONE`) will disable the radio's IRQ pin.
+     * Multiple events can be enabled by OR-ing rf24_irq_flags_e values together.
+     * ```cpp
+     * radio.setStatusFlags(RF24_IRQ_ALL);
+     * // is equivalent to
+     * radio.setStatusFlags(RF24_RX_DR | RF24_TX_DS | RF24_TX_DF);
+     * ```
+     *
+     * @ingroup StatusFlags
+     */
+    void setStatusFlags(uint8_t flags = RF24_IRQ_NONE);
+
+    /**
+     * Get the latest STATUS byte returned from the last SPI transaction.
+     *
+     * @note This does not actually perform any SPI transaction with the radio.
+     * Use `RF24::update()` instead to get a fresh copy of the Status flags at
+     * the slight cost of performance.
+     *
+     * @returns The STATUS byte from the radio's register as the latest SPI transaction. Use
+     * enumerations of rf24_irq_flags_e as masks to interpret the STATUS byte's meaning(s).
+     *
+     * @ingroup StatusFlags
+     */
+    uint8_t getStatusFlags();
+
+    /**
+     * Get an updated STATUS byte from the radio.
+     *
+     * @returns The STATUS byte fetched from the radio's register. Use enumerations of
+     * rf24_irq_flags_e as masks to interpret the STATUS byte's meaning(s).
+     *
+     * @ingroup StatusFlags
+     */
+    uint8_t update();
 
     /**
      * Non-blocking write to the open writing pipe used for buffered writes
@@ -1165,13 +1294,13 @@ public:
      * Non-blocking write to the open writing pipe
      *
      * Just like write(), but it returns immediately. To find out what happened
-     * to the send, catch the IRQ and then call whatHappened().
+     * to the send, catch the IRQ and then call clearStatusFlags() or update().
      *
      * @see
      * - write()
      * - writeFast()
      * - startFastWrite()
-     * - whatHappened()
+     * - clearStatusFlags()
      * - setAutoAck() (for single noAck writes)
      *
      * @param buf Pointer to the data to be sent
@@ -1265,11 +1394,11 @@ public:
      * @code
      * bool goodSignal = radio.testRPD();
      * if(radio.available()){
-     *    Serial.println(goodSignal ? "Strong signal > 64dBm" : "Weak signal < 64dBm" );
-     *    radio.read(0,0);
+     *    Serial.println(goodSignal ? "Strong signal > -64dBm" : "Weak signal < -64dBm" );
+     *    radio.read(&payload,sizeof(payload));
      * }
      * @endcode
-     * @return true if a signal less than or equal to -64dBm was detected,
+     * @return true if a signal greater than or equal to -64dBm was detected,
      * false if not.
      */
     bool testRPD(void);
@@ -1349,7 +1478,7 @@ public:
      * (ACK) packet during the delay between retry attempts.
      *
      * @param delay How long to wait between each retry, in multiples of
-     * 250 us. The minumum of 0 means 250 us, and the maximum of 15 means
+     * 250 us. The minimum of 0 means 250 us, and the maximum of 15 means
      * 4000 us. The default value of 5 means 1500us (5 * 250 + 250).
      * @param count How many retries before giving up. The default/maximum is 15. Use
      * 0 to disable the auto-retry feature all together.
@@ -1689,38 +1818,6 @@ public:
     void disableCRC(void);
 
     /**
-     * This function is used to configure what events will trigger the Interrupt
-     * Request (IRQ) pin active LOW.
-     * The following events can be configured:
-     * 1. "data sent": This does not mean that the data transmitted was
-     * received, only that the attempt to send it was complete.
-     * 2. "data failed": This means the data being sent was not received. This
-     * event is only triggered when the auto-ack feature is enabled.
-     * 3. "data received": This means that data from a receiving payload has
-     * been loaded into the RX FIFO buffers. Remember that there are only 3
-     * levels available in the RX FIFO buffers.
-     *
-     * By default, all events are configured to trigger the IRQ pin active LOW.
-     * When the IRQ pin is active, use whatHappened() to determine what events
-     * triggered it. Remember that calling whatHappened() also clears these
-     * events' status, and the IRQ pin will then be reset to inactive HIGH.
-     *
-     * The following code configures the IRQ pin to only reflect the "data received"
-     * event:
-     * @code
-     * radio.maskIRQ(1, 1, 0);
-     * @endcode
-     *
-     * @param tx_ok  `true` ignores the "data sent" event, `false` reflects the
-     * "data sent" event on the IRQ pin.
-     * @param tx_fail  `true` ignores the "data failed" event, `false` reflects the
-     * "data failed" event on the IRQ pin.
-     * @param rx_ready `true` ignores the "data received" event, `false` reflects the
-     * "data received" event on the IRQ pin.
-     */
-    void maskIRQ(bool tx_ok, bool tx_fail, bool rx_ready);
-
-    /**
      *
      * The driver will delay for this duration when stopListening() is called
      *
@@ -1737,7 +1834,7 @@ public:
      *
      * On all devices but Linux and ATTiny, a small delay is added to the CSN toggling function
      *
-     * This is intended to minimise the speed of SPI polling due to radio commands
+     * This is intended to minimize the speed of SPI polling due to radio commands
      *
      * If using interrupts or timed requests, this can be set to 0 Default:5
      */
@@ -1780,7 +1877,7 @@ public:
      * @brief Open or close all data pipes.
      *
      * This function does not alter the addresses assigned to pipes. It is simply a
-     * convenience function that allows controling all pipes at once.
+     * convenience function that allows controlling all pipes at once.
      * @param isEnabled `true` opens all pipes; `false` closes all pipes.
      */
     void toggleAllPipes(bool isEnabled);
@@ -1807,7 +1904,8 @@ public:
     /**
      * Open a pipe for reading
      * @deprecated For compatibility with old code only, see newer function
-     * openReadingPipe()
+     * openReadingPipe().
+     * See our [migration guide](migration.md) to understand what you should update in your code.
      *
      * @note Pipes 1-5 should share the first 32 bits.
      * Only the least significant byte should be unique, e.g.
@@ -1832,7 +1930,8 @@ public:
     /**
      * Open a pipe for writing
      * @deprecated For compatibility with old code only, see newer function
-     * openWritingPipe()
+     * openWritingPipe().
+     * See our [migration guide](migration.md) to understand what you should update in your code.
      *
      * Addresses are 40-bit hex values, e.g.:
      *
@@ -1850,10 +1949,94 @@ public:
      *
      * @deprecated For compatibility with old code only, see synonymous function available().
      * Use read() to retrieve the ack payload and getDynamicPayloadSize() to get the ACK payload size.
+     * See our [migration guide](migration.md) to understand what you should update in your code.
      *
      * @return True if an ack payload is available.
      */
     bool isAckPayloadAvailable(void);
+
+    /**
+     * This function is used to configure what events will trigger the Interrupt
+     * Request (IRQ) pin active LOW.
+     *
+     * @deprecated Use setStatusFlags() instead.
+     * See our [migration guide](migration.md) to understand what you should update in your code.
+     *
+     * The following events can be configured:
+     * 1. "data sent": This does not mean that the data transmitted was
+     * received, only that the attempt to send it was complete.
+     * 2. "data failed": This means the data being sent was not received. This
+     * event is only triggered when the auto-ack feature is enabled.
+     * 3. "data received": This means that data from a receiving payload has
+     * been loaded into the RX FIFO buffers. Remember that there are only 3
+     * levels available in the RX FIFO buffers.
+     *
+     * By default, all events are configured to trigger the IRQ pin active LOW.
+     * When the IRQ pin is active, use clearStatusFlags() or getStatusFlags() to
+     * determine what events triggered it.
+     * Remember that calling clearStatusFlags() also clears these
+     * events' status, and the IRQ pin will then be reset to inactive HIGH.
+     *
+     * The following code configures the IRQ pin to only reflect the "data received"
+     * event:
+     * @code
+     * radio.maskIRQ(1, 1, 0);
+     * @endcode
+     *
+     * @param tx_ok  `true` ignores the "data sent" event, `false` reflects the
+     * "data sent" event on the IRQ pin.
+     * @param tx_fail  `true` ignores the "data failed" event, `false` reflects the
+     * "data failed" event on the IRQ pin.
+     * @param rx_ready `true` ignores the "data received" event, `false` reflects the
+     * "data received" event on the IRQ pin.
+     */
+    void maskIRQ(bool tx_ok, bool tx_fail, bool rx_ready);
+
+    /**
+     * Call this when you get an Interrupt Request (IRQ) to find out why
+     *
+     * This function describes what event triggered the IRQ pin to go active
+     * LOW and clears the status of all events.
+     *
+     * @deprecated Use clearStatusFlags() instead.
+     * See our [migration guide](migration.md) to understand what you should update in your code.
+     *
+     * @see setStatusFlags()
+     *
+     * @param[out] tx_ok The transmission attempt completed (TX_DS). This does
+     * not imply that the transmitted data was received by another radio, rather
+     * this only reports if the attempt to send was completed. This will
+     * always be `true` when the auto-ack feature is disabled.
+     * @param[out] tx_fail The transmission failed to be acknowledged, meaning
+     * too many retries (MAX_RT) were made while expecting an ACK packet. This
+     * event is only triggered when auto-ack feature is enabled.
+     * @param[out] rx_ready There is a newly received payload (RX_DR) saved to
+     * RX FIFO buffers. Remember that the RX FIFO can only hold up to 3
+     * payloads. Once the RX FIFO is full, all further received transmissions
+     * are rejected until there is space to save new data in the RX FIFO
+     * buffers.
+     *
+     * @note This function expects no parameters in the python wrapper.
+     * Instead, this function returns a 3 item tuple describing the IRQ
+     * events' status. To use this function in the python wrapper:
+     * @code{.py}
+     * # let`radio` be the instantiated RF24 object
+     * tx_ds, tx_df, rx_dr = radio.whatHappened()  # get IRQ status flags
+     * print("tx_ds: {}, tx_df: {}, rx_dr: {}".format(tx_ds, tx_df, rx_dr))
+     * @endcode
+     */
+    void whatHappened(bool& tx_ok, bool& tx_fail, bool& rx_ready);
+
+    /**
+     * Similar to startListening(void) but changes the TX address.
+     *
+     * @deprecated Use stopListening(const uint8_t*) instead.
+     * See our [migration guide](migration.md) to understand what you should update in your code.
+     *
+     * @param txAddress The new TX address.
+     * This value will be cached for auto-ack purposes.
+     */
+    void stopListening(const uint64_t txAddress);
 
 private:
     /**@}*/
@@ -1897,14 +2080,6 @@ private:
     void csn(bool mode);
 
     /**
-     * Set chip enable
-     *
-     * @param level HIGH to actively begin transmission or LOW to put in standby.  Please see data sheet
-     * for a much more detailed description of this pin.
-     */
-    void ce(bool level);
-
-    /**
      * Write a chunk of data to a register
      *
      * @param reg Which register. Use constants from nRF24L01.h
@@ -1920,12 +2095,10 @@ private:
      *
      * @param reg Which register. Use constants from nRF24L01.h
      * @param value The new value to write
-     * @param is_cmd_only if this parameter is true, then the `reg` parameter
-     * is written, and the `value` param is ignored.
      * @return Nothing. Older versions of this function returned the status
      * byte, but that it now saved to a private member on all SPI transactions.
      */
-    void write_register(uint8_t reg, uint8_t value, bool is_cmd_only = false);
+    void write_register(uint8_t reg, uint8_t value);
 
     /**
      * Write the transmit payload
@@ -1952,23 +2125,7 @@ private:
      */
     void read_payload(void* buf, uint8_t len);
 
-    /**
-     * Retrieve the current status of the chip
-     *
-     * @return Current value of status register
-     */
-    uint8_t get_status(void);
-
 #if !defined(MINIMAL)
-
-    /**
-     * Decode and print the given status to stdout
-     *
-     * @param status Status value to print
-     *
-     * @warning Does nothing if stdout is not defined.  See fdevopen in stdio.h
-     */
-    void print_status(uint8_t status);
 
     /**
      * Decode and print the given 'observe_tx' value to stdout
@@ -2224,7 +2381,7 @@ private:
  *
  * This is a simple example of using the RF24 class on a Raspberry Pi.
  *
- * Remember to install the [Python wrapper](md_docs_python_wrapper.html), then
+ * Remember to install the [Python wrapper](python_wrapper.md), then
  * navigate to the "RF24/examples_linux" folder.
  * <br>To run this example, enter
  * @code{.sh}python3 getting_started.py @endcode and follow the prompts.
@@ -2240,7 +2397,7 @@ private:
  * This is a simple example of using the RF24 class on a Raspberry Pi to
  * transmit and retrieve custom automatic acknowledgment payloads.
  *
- * Remember to install the [Python wrapper](md_docs_python_wrapper.html), then
+ * Remember to install the [Python wrapper](python_wrapper.md), then
  * navigate to the "RF24/examples_linux" folder.
  * <br>To run this example, enter
  * @code{.sh}python3 acknowledgement_payloads.py @endcode and follow the prompts.
@@ -2259,7 +2416,7 @@ private:
  * payloads because automatic ACK payloads' data will always be outdated by 1
  * transmission. Instead, this example uses a call and response paradigm.
  *
- * Remember to install the [Python wrapper](md_docs_python_wrapper.html), then
+ * Remember to install the [Python wrapper](python_wrapper.md), then
  * navigate to the "RF24/examples_linux" folder.
  * <br>To run this example, enter
  * @code{.sh}python3 manual_acknowledgements.py @endcode and follow the prompts.
@@ -2275,7 +2432,7 @@ private:
  * This is a simple example of using the RF24 class on a Raspberry Pi for
  * streaming multiple payloads.
  *
- * Remember to install the [Python wrapper](md_docs_python_wrapper.html), then
+ * Remember to install the [Python wrapper](python_wrapper.md), then
  * navigate to the "RF24/examples_linux" folder.
  * <br>To run this example, enter
  * @code{.sh}python3 streaming_data.py @endcode and follow the prompts.
@@ -2291,7 +2448,7 @@ private:
  * This is a simple example of using the RF24 class on a Raspberry Pi to
  * detecting (and verifying) the IRQ (interrupt) pin on the nRF24L01.
  *
- * Remember to install the [Python wrapper](md_docs_python_wrapper.html), then
+ * Remember to install the [Python wrapper](python_wrapper.md), then
  * navigate to the "RF24/examples_linux" folder.
  * <br>To run this example, enter
  * @code{.sh}python3 interrupt_configure.py @endcode and follow the prompts.
@@ -2308,7 +2465,7 @@ private:
  * using 1 nRF24L01 to receive data from up to 6 other transceivers. This
  * technique is called "multiceiver" in the datasheet.
  *
- * Remember to install the [Python wrapper](md_docs_python_wrapper.html), then
+ * Remember to install the [Python wrapper](python_wrapper.md), then
  * navigate to the "RF24/examples_linux" folder.
  * <br>To run this example, enter
  * @code{.sh}python3 multiceiver_demo.py @endcode and follow the prompts.
@@ -2403,4 +2560,4 @@ private:
  * Use `ctrl+c` to quit at any time.
  */
 
-#endif // __RF24_H__
+#endif // RF24_H_

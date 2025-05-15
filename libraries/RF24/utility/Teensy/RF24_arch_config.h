@@ -18,13 +18,15 @@
 
 #define _SPI SPIClass
 #define RF24_SPI_PTR
+typedef uint8_t rf24_gpio_pin_t;
+#define RF24_PIN_INVALID 0xFF
 
 #define printf Serial.printf
 
-#ifdef SERIAL_DEBUG
-    #define IF_SERIAL_DEBUG(x) ({ x; })
+#ifdef RF24_DEBUG
+    #define IF_RF24_DEBUG(x) ({ x; })
 #else
-    #define IF_SERIAL_DEBUG(x)
+    #define IF_RF24_DEBUG(x)
 #endif
 
 #define PRIPSTR "%s"

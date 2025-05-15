@@ -1,20 +1,13 @@
 #ifndef RF24_UTILITY_MRAA_RF24_ARCH_CONFIG_H_
 #define RF24_UTILITY_MRAA_RF24_ARCH_CONFIG_H_
 
+#include <stdint.h> // uint16_t
+#include <stdio.h>  // printf
+#include <string.h> // strlen
 #include "mraa.h"
 #include "spi.h"
 #include "gpio.h"
 #include "compatibility.h"
-
-#include <stdint.h>
-#include <stdio.h>
-#include <time.h>
-#include <string.h>
-#include <sys/time.h>
-#include <stddef.h>
-#include <iostream>
-#include <unistd.h>
-#include <stdlib.h>
 
 //#include <UtilTime.h> // Precompiled arduino x86 based utiltime for timing functions
 
@@ -22,13 +15,14 @@
 #define HIGH             1
 #define LOW              0
 #define _BV(x)           (1 << (x))
-#define pgm_read_word(p) (*(p))
-#define pgm_read_byte(p) (*(p))
-#define pgm_read_ptr(p)  (*(p))
+#define pgm_read_word(p) (*(const unsigned short*)(p))
+#define pgm_read_byte(p) (*(const unsigned char*)(p))
+#define pgm_read_ptr(p)  (*(void* const*)(p))
 #define _SPI             spi
 
 #define RF24_LINUX
 //typedef uint16_t prog_uint16_t;
+
 #define PSTR(x)   (x)
 #define printf_P  printf
 #define sprintf_P sprintf
@@ -36,19 +30,19 @@
 #define PROGMEM
 #define PRIPSTR "%s"
 
-#ifdef SERIAL_DEBUG
-    #define IF_SERIAL_DEBUG(x) ({ x; })
+#ifdef RF24_DEBUG
+    #define IF_RF24_DEBUG(x) ({ x; })
 #else
-    #define IF_SERIAL_DEBUG(x)
+    #define IF_RF24_DEBUG(x)
 #endif
 
-#define digitalWrite(pin, value) gpio.write(pin, value)
+#define digitalWrite(pin, value) GPIO::write(pin, value)
 #define digitalRead(pin)         GPIO::read(pin)
-#define pinMode(pin, direction)  gpio.open(pin, direction)
+#define pinMode(pin, direction)  GPIO::open(pin, direction)
 
 #ifndef __TIME_H__
     // Prophet: Redefine time functions only if precompiled arduino time is not included
-    #define delay(milisec)          __msleep(milisec)
+    #define delay(millisec)         __msleep(millisec)
     #define delayMicroseconds(usec) __usleep(usec)
     #define millis()                __millis()
 #endif

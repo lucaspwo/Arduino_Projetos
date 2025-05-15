@@ -29,12 +29,19 @@ using namespace std;
 // CE Pin uses GPIO number with BCM and SPIDEV drivers, other platforms use their own pin numbering
 // CS Pin addresses the SPI bus number at /dev/spidev<a>.<b>
 // ie: RF24 radio(<ce_pin>, <a>*10+<b>); spidev1.0 is 10, spidev1.1 is 11 etc..
-
+#define CSN_PIN 0
+#ifdef MRAA
+    #define CE_PIN 15 // GPIO22
+#elif defined(RF24_WIRINGPI)
+    #define CE_PIN 3 // GPIO22
+#else
+    #define CE_PIN 22
+#endif
 // Generic:
-RF24 radio(22, 0);
+RF24 radio(CE_PIN, CSN_PIN);
 /****************** Linux (BBB,x86,etc) ***********************/
 // See http://nRF24.github.io/RF24/pages.html for more information on usage
-// See http://iotdk.intel.com/docs/master/mraa/ for more information on MRAA
+// See https://github.com/eclipse/mraa/ for more information on MRAA
 // See https://www.kernel.org/doc/Documentation/spi/spidev for more information on SPIDEV
 
 // For this example, we'll be using a payload containing
@@ -54,7 +61,7 @@ void slave();   // prototype of the RX node's behavior
 
 // custom defined timer for evaluating transmission time in microseconds
 struct timespec startTimer, endTimer;
-uint32_t getMicros(); // prototype to get ellapsed time in microseconds
+uint32_t getMicros(); // prototype to get elapsed time in microseconds
 
 int main(int argc, char** argv)
 {
@@ -96,8 +103,8 @@ int main(int argc, char** argv)
     // number of bytes we need to transmit a float
     radio.setPayloadSize(sizeof(payload)); // char[7] & uint8_t datatypes occupy 8 bytes
 
-    // set the TX address of the RX node into the TX pipe
-    radio.openWritingPipe(address[radioNumber]); // always uses pipe 0
+    // set the TX address of the RX node for use on the TX pipe (pipe 0)
+    radio.stopListening(address[radioNumber]);
 
     // set the RX address of the TX node into a RX pipe
     radio.openReadingPipe(1, address[!radioNumber]); // using pipe 1
@@ -160,8 +167,8 @@ void master()
                 if (millis() - start_timeout > 200) // only wait 200 ms
                     break;
             }
-            unsigned long ellapsedTime = getMicros(); // end the timer
-            radio.stopListening();                    // put back in TX mode
+            unsigned long elapsedTime = getMicros(); // end the timer
+            radio.stopListening();                   // put back in TX mode
 
             // print summary of transactions
             uint8_t pipe;
@@ -169,12 +176,12 @@ void master()
             if (radio.available(&pipe)) {               // is there a payload received? grab the pipe number that received it
                 uint8_t bytes = radio.getPayloadSize(); // grab the incoming payload size
                 cout << "Round trip delay = ";
-                cout << ellapsedTime;                     // print the timer result
+                cout << elapsedTime;                      // print the timer result
                 cout << " us. Sent: " << payload.message; // print outgoing message
                 cout << (unsigned int)payload.counter;    // print outgoing counter
                 PayloadStruct received;
                 radio.read(&received, sizeof(received));     // get incoming payload
-                cout << " Recieved " << (unsigned int)bytes; // print incoming payload size
+                cout << " Received " << (unsigned int)bytes; // print incoming payload size
                 cout << " on pipe " << (unsigned int)pipe;   // print RX pipe number
                 cout << ": " << received.message;            // print the incoming message
                 cout << (unsigned int)received.counter;      // print the incoming counter
@@ -182,7 +189,7 @@ void master()
                 payload.counter = received.counter; // save incoming counter for next outgoing counter
             }
             else {
-                cout << "Recieved no response." << endl; // no response received
+                cout << "Received no response." << endl; // no response received
             }
         }
         else {
@@ -209,7 +216,7 @@ void slave()
     time_t startTimer = time(nullptr);       // start a timer
     while (time(nullptr) - startTimer < 6) { // use 6 second timeout
         uint8_t pipe;
-        if (radio.available(&pipe)) {               // is there a payload? get the pipe number that recieved it
+        if (radio.available(&pipe)) {               // is there a payload? get the pipe number that received it
             uint8_t bytes = radio.getPayloadSize(); // get size of incoming payload
             PayloadStruct received;
             radio.read(&received, sizeof(received)); // get incoming payload
@@ -245,7 +252,7 @@ void slave()
 } // slave
 
 /**
- * Calculate the ellapsed time in microseconds
+ * Calculate the elapsed time in microseconds
  */
 uint32_t getMicros()
 {

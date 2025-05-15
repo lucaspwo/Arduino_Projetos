@@ -114,7 +114,7 @@ void loop()
     Assert << F("abc") == F("abc");
     Assert << String("string") == F("string");
     Assert << PrintableTest() == F("printed");
-    
+
     //
     //  Check that chaining works
     //
@@ -130,7 +130,7 @@ void loop()
     Assert << _DEC((int8_t)-1) == F("-1");
     Assert << _DEC((uint8_t)1) == F("1");
     Assert << _DEC((uint8_t)-1) == F("255");
-    
+
     Assert << _DEC((int16_t)1) == F("1");
     Assert << _DEC((int16_t)-1) == F("-1");
     Assert << _DEC((uint16_t)1) == F("1");
@@ -193,6 +193,35 @@ void loop()
     Assert << _WIDTH((uint16_t)-1, 11) ==   F("      65535");
     Assert << _WIDTH((int32_t)-1, 11) ==    F("         -1");
     Assert << _WIDTH((uint32_t)-1, 11) ==   F(" 4294967295");
+    Assert << _WIDTH((int8_t)-20, 11) ==    F("        -20");
+    Assert << _WIDTH((int16_t)-32767, 11) ==F("     -32767");
+    Assert << _WIDTH((int32_t)-65536, 11) ==F("     -65536");
+
+    //
+    //  Width streaming for floats
+    //
+
+    Assert << _WIDTH(_FLOAT(-9.99, 1), 11)==F("      -10.0");
+    Assert << _WIDTH(-3.14159, 11)       == F("      -3.14"); // default nb of digits after decimal point is 2 for print(double)
+    Assert << _WIDTH((float)12.566, 11)  == F("      12.57");
+
+    Assert << _FLOATW(-1,         2, 11) == F("      -1.00");
+    Assert << _FLOATW(1.23456e4,  1, 11) == F("    12345.6");
+    #ifdef ARDUINO_ARCH_AVR
+    Assert << _FLOATW(-3.1415926, 6, 11) == F("  -3.141592");
+    #else
+    Assert << _FLOATW(-3.1415926, 6, 11) == F("  -3.141593");
+    #endif
+    Assert << _FLOATW(-9.999999,  4, 11) == F("   -10.0000");
+    Assert << _FLOATW(-0.0,       1, 11) == F("        0.0");
+    Assert << _FLOATW(-0.01,      1, 11) == F("       -0.0");
+    Assert << _FLOATW(-0.01,      0, 11) == F("         -0");
+    Assert << _FLOATW(1.4,        0, 11) == F("          1");
+    Assert << _FLOATW(0. / 0.,    2, 11) == F("        nan");
+    Assert << _FLOATW(-1. / 0.,   2, 11) == F("        inf");
+    #ifndef ESP8266 // no ovf on esp8266
+    Assert << _FLOATW(1.e10,      2, 11) == F("        ovf");
+    #endif
 
     //
     //  Stream formatter
@@ -228,7 +257,7 @@ void loop()
     //
     // Ensure streaming template overide doesn't pass by value
     //
-    Assert 
+    Assert
         << NoCopyConstructorType()
         == F("NoCopyCtr");
 

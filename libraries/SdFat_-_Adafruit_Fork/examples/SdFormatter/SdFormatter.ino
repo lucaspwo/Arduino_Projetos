@@ -10,6 +10,9 @@
  * For very small cards this program uses FAT16
  * and the above SDFormatter uses FAT12.
  */
+#ifndef DISABLE_FS_H_WARNING
+#define DISABLE_FS_H_WARNING  // Disable warning for type File not defined. 
+#endif  // DISABLE_FS_H_WARNING 
 #include "SdFat.h"
 #include "sdios.h"
 
@@ -31,7 +34,7 @@ const int8_t DISABLE_CS_PIN = -1;
 // SDCARD_SS_PIN is defined for the built-in SD on some boards.
 #ifndef SDCARD_SS_PIN
 const uint8_t SD_CS_PIN = SS;
-#else  // SDCARD_SS_PIN
+#else   // SDCARD_SS_PIN
 // Assume built-in SD is used.
 const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
 #endif  // SDCARD_SS_PIN
@@ -40,26 +43,33 @@ const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
 #define SPI_CLOCK SD_SCK_MHZ(50)
 
 // Try to select the best SD card configuration.
-#if HAS_SDIO_CLASS
+#if defined(HAS_TEENSY_SDIO)
 #define SD_CONFIG SdioConfig(FIFO_SDIO)
-#elif  ENABLE_DEDICATED_SPI
+#elif defined(HAS_BUILTIN_PIO_SDIO)
+// See the Rp2040SdioSetup example for boards without a builtin SDIO socket.
+#define SD_CONFIG SdioConfig(PIN_SD_CLK, PIN_SD_CMD_MOSI, PIN_SD_DAT0_MISO)
+#elif ENABLE_DEDICATED_SPI
 #define SD_CONFIG SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SPI_CLOCK)
-#else  // HAS_SDIO_CLASS
+#else  // HAS_TEENSY_SDIO
 #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SPI_CLOCK)
-#endif  // HAS_SDIO_CLASS
+#endif  // HAS_TEENSY_SDIO
 //==============================================================================
 // Serial output stream
 ArduinoOutStream cout(Serial);
 //------------------------------------------------------------------------------
 uint32_t cardSectorCount = 0;
-uint8_t  sectorBuffer[512];
+uint8_t sectorBuffer[512] __attribute__ ((aligned (4)));
 //------------------------------------------------------------------------------
 // SdCardFactory constructs and initializes the appropriate card.
 SdCardFactory cardFactory;
 // Pointer to generic SD card.
 SdCard* m_card = nullptr;
 //------------------------------------------------------------------------------
-#define sdError(msg) {cout << F("error: ") << F(msg) << endl; sdErrorHalt();}
+#define sdError(msg)                        \
+  {                                         \
+    cout << F("error: ") << F(msg) << endl; \
+    sdErrorHalt();                          \
+  }
 //------------------------------------------------------------------------------
 void sdErrorHalt() {
   if (!m_card) {
@@ -73,7 +83,8 @@ void sdErrorHalt() {
     cout << F(" = ") << int(m_card->errorCode()) << endl;
     cout << F("SD errorData = ") << int(m_card->errorData()) << endl;
   }
-  while (true) {}
+  while (true) {
+  }
 }
 //------------------------------------------------------------------------------
 void clearSerialInput() {
@@ -102,7 +113,7 @@ void eraseCard() {
       sdError("erase failed");
     }
     cout << '.';
-    if ((n++)%64 == 63) {
+    if ((n++) % 64 == 63) {
       cout << endl;
     }
     firstBlock += ERASE_SIZE;
@@ -123,9 +134,9 @@ void formatCard() {
   FatFormatter fatFormatter;
 
   // Format exFAT if larger than 32GB.
-  bool rtn = cardSectorCount > 67108864 ?
-    exFatFormatter.format(m_card, sectorBuffer, &Serial) :
-    fatFormatter.format(m_card, sectorBuffer, &Serial);
+  bool rtn = cardSectorCount > 67108864
+                 ? exFatFormatter.format(m_card, sectorBuffer, &Serial)
+                 : fatFormatter.format(m_card, sectorBuffer, &Serial);
 
   if (!rtn) {
     sdErrorHalt();
@@ -136,8 +147,8 @@ void formatCard() {
 void printConfig(SdSpiConfig config) {
   if (DISABLE_CS_PIN < 0) {
     cout << F(
-           "\nAssuming the SD is the only SPI device.\n"
-           "Edit DISABLE_CS_PIN to disable an SPI device.\n");
+        "\nAssuming the SD is the only SPI device.\n"
+        "Edit DISABLE_CS_PIN to disable an SPI device.\n");
   } else {
     cout << F("\nDisabling SPI device on pin ");
     cout << int(DISABLE_CS_PIN) << endl;
@@ -169,19 +180,19 @@ void setup() {
   clearSerialInput();
 
   cout << F(
-         "\n"
-         "This program can erase and/or format SD/SDHC/SDXC cards.\n"
-         "\n"
-         "Erase uses the card's fast flash erase command.\n"
-         "Flash erase sets all data to 0X00 for most cards\n"
-         "and 0XFF for a few vendor's cards.\n"
-         "\n"
-         "Cards up to 2 GiB (GiB = 2^30 bytes) will be formated FAT16.\n"
-         "Cards larger than 2 GiB and up to 32 GiB will be formatted\n"
-         "FAT32. Cards larger than 32 GiB will be formatted exFAT.\n"
-         "\n"
-         "Warning, all data on the card will be erased.\n"
-         "Enter 'Y' to continue: ");
+      "\n"
+      "This program can erase and/or format SD/SDHC/SDXC cards.\n"
+      "\n"
+      "Erase uses the card's fast flash erase command.\n"
+      "Flash erase sets all data to 0X00 for most cards\n"
+      "and 0XFF for a few vendor's cards.\n"
+      "\n"
+      "Cards up to 2 GiB (GiB = 2^30 bytes) will be formated FAT16.\n"
+      "Cards larger than 2 GiB and up to 32 GiB will be formatted\n"
+      "FAT32. Cards larger than 32 GiB will be formatted exFAT.\n"
+      "\n"
+      "Warning, all data on the card will be erased.\n"
+      "Enter 'Y' to continue: ");
   while (!Serial.available()) {
     yield();
   }
@@ -194,11 +205,16 @@ void setup() {
   // Read any existing Serial data.
   clearSerialInput();
 
-  // Select and initialize proper card driver.
+  // Initialize card and fall back to 1 MHz if init or sectorCount() fails
   m_card = cardFactory.newCard(SD_CONFIG);
-  if (!m_card || m_card->errorCode()) {
-    sdError("card init failed.");
-    return;
+  if (!m_card || m_card->errorCode() || m_card->sectorCount() == 0) {
+    SdSpiConfig slowCfg(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(1));
+    SdCard* slowCard = cardFactory.newCard(slowCfg);
+    if (!slowCard || slowCard->errorCode() || slowCard->sectorCount() == 0) {
+      sdError("card init failed.");
+      return;
+    }
+    m_card = slowCard;
   }
 
   cardSectorCount = m_card->sectorCount();
@@ -207,9 +223,9 @@ void setup() {
     return;
   }
 
-  cout << F("\nCard size: ") << cardSectorCount*5.12e-7;
+  cout << F("\nCard size: ") << cardSectorCount * 5.12e-7;
   cout << F(" GB (GB = 1E9 bytes)\n");
-  cout << F("Card size: ") << cardSectorCount/2097152.0;
+  cout << F("Card size: ") << cardSectorCount / 2097152.0;
   cout << F(" GiB (GiB = 2^30 bytes)\n");
 
   cout << F("Card will be formated ");
@@ -221,13 +237,13 @@ void setup() {
     cout << F("FAT16\n");
   }
   cout << F(
-         "\n"
-         "Options are:\n"
-         "E - erase the card and skip formatting.\n"
-         "F - erase and then format the card. (recommended)\n"
-         "Q - quick format the card without erase.\n"
-         "\n"
-         "Enter option: ");
+      "\n"
+      "Options are:\n"
+      "E - erase the card and skip formatting.\n"
+      "F - erase and then format the card. (recommended)\n"
+      "Q - quick format the card without erase.\n"
+      "\n"
+      "Enter option: ");
 
   while (!Serial.available()) {
     yield();
@@ -239,11 +255,15 @@ void setup() {
     return;
   }
   if (c == 'E' || c == 'F') {
-    eraseCard();
+    // XTSD/Zetta and some flash-based cards do not support SD erase commands
+    if (!m_card->erase(0, 0)) {
+      cout << F("\nErase unsupported — skipping erase step\n");
+    } else {
+      eraseCard();
+    }
   }
   if (c == 'F' || c == 'Q') {
     formatCard();
   }
 }
-void loop() {
-}
+void loop() {}

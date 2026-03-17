@@ -1,13 +1,24 @@
 /*
  * This program is a simple binary write/read benchmark.
  */
+#ifndef DISABLE_FS_H_WARNING
+#define DISABLE_FS_H_WARNING  // Disable warning for type File not defined.
+#endif                        // DISABLE_FS_H_WARNING
 #include "SdFat.h"
-#include "sdios.h"
 #include "FreeStack.h"
+#include "sdios.h"
 
 // SD_FAT_TYPE = 0 for SdFat/File as defined in SdFatConfig.h,
 // 1 for FAT16/FAT32, 2 for exFAT, 3 for FAT16/FAT32 and exFAT.
-#define SD_FAT_TYPE 1
+#if defined __has_include
+#if __has_include(<FS.h>)
+#define SD_FAT_TYPE 3  // Can't use SdFat/File
+#endif                 // __has_include(<FS.h>)
+#endif                 // defined __has_include
+
+#ifndef SD_FAT_TYPE
+#define SD_FAT_TYPE 0  // Use SdFat/File
+#endif                 // SD_FAT_TYPE
 /*
   Change the value of SD_CS_PIN if you are using SPI and
   your hardware does not use the default value, SS.
@@ -19,7 +30,7 @@
 // SDCARD_SS_PIN is defined for the built-in SD on some boards.
 #ifndef SDCARD_SS_PIN
 const uint8_t SD_CS_PIN = SS;
-#else  // SDCARD_SS_PIN
+#else   // SDCARD_SS_PIN
 // Assume built-in SD is used.
 const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
 #endif  // SDCARD_SS_PIN
@@ -27,14 +38,22 @@ const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
 // Try max SPI clock for an SD. Reduce SPI_CLOCK if errors occur.
 #define SPI_CLOCK SD_SCK_MHZ(50)
 
+
 // Try to select the best SD card configuration.
-#if HAS_SDIO_CLASS
+#if defined(HAS_TEENSY_SDIO)
 #define SD_CONFIG SdioConfig(FIFO_SDIO)
-#elif  ENABLE_DEDICATED_SPI
+#elif defined(HAS_BUILTIN_PIO_SDIO)
+// See the Rp2040SdioSetup example for boards without a builtin SDIO socket.
+#define SD_CONFIG SdioConfig(PIN_SD_CLK, PIN_SD_CMD_MOSI, PIN_SD_DAT0_MISO)
+// Definitions for my Pico debug tests when zero and // are removed.
+#elif 0  // defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_2)
+// CLK: GPIO10, CMD: GPIO11, DAT[0,3]: GPIO[12, 15].
+#define SD_CONFIG SdioConfig(10u, 11u, 12u)
+#elif ENABLE_DEDICATED_SPI
 #define SD_CONFIG SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SPI_CLOCK)
-#else  // HAS_SDIO_CLASS
+#else  // HAS_TEENSY_SDIO
 #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SPI_CLOCK)
-#endif  // HAS_SDIO_CLASS
+#endif  // HAS_TEENSY_SDIO
 
 // Set PRE_ALLOCATE true to pre-allocate file clusters.
 const bool PRE_ALLOCATE = true;
@@ -54,14 +73,17 @@ const uint8_t WRITE_COUNT = 2;
 
 // Read pass count.
 const uint8_t READ_COUNT = 2;
+
+//  Full read verify - will require twice as much buffer memory.
+#define FULL_READ_VERIFY false
 //==============================================================================
 // End of configuration constants.
 //------------------------------------------------------------------------------
 // File size in bytes.
-const uint32_t FILE_SIZE = 1000000UL*FILE_SIZE_MB;
+const uint64_t FILE_SIZE = 1000000ULL * FILE_SIZE_MB;
 
 // Insure 4-byte alignment.
-uint32_t buf32[(BUF_SIZE + 3)/4];
+uint32_t buf32[(BUF_SIZE + 3) / 4];
 uint8_t* buf = (uint8_t*)buf32;
 
 #if SD_FAT_TYPE == 0
@@ -125,8 +147,13 @@ void setup() {
   cout << F("\nUse a freshly formatted SD for best performance.\n");
   if (!ENABLE_DEDICATED_SPI) {
     cout << F(
-      "\nSet ENABLE_DEDICATED_SPI nonzero in\n"
-      "SdFatConfig.h for best SPI performance.\n");
+        "\nSet ENABLE_DEDICATED_SPI nonzero in\n"
+        "SdFatConfig.h for best SPI performance.\n");
+  }
+  if (!SD_HAS_CUSTOM_SPI && !USE_SPI_ARRAY_TRANSFER && isSpi(SD_CONFIG)) {
+    cout << F(
+        "\nSetting USE_SPI_ARRAY_TRANSFER nonzero in\n"
+        "SdFatConfig.h may improve SPI performance.\n");
   }
   // use uppercase in hex and use 0X base prefix
   cout << uppercase << showbase << endl;
@@ -161,7 +188,7 @@ void loop() {
     cout << F("Type is FAT") << int(sd.fatType()) << endl;
   }
 
-  cout << F("Card size: ") << sd.card()->sectorCount()*512E-9;
+  cout << F("Card size: ") << sd.card()->sectorCount() * 512E-9;
   cout << F(" GB (GB = 1E9 bytes)") << endl;
 
   cidDmp();
@@ -176,17 +203,17 @@ void loop() {
     for (size_t i = 0; i < (BUF_SIZE - 2); i++) {
       buf[i] = 'A' + (i % 26);
     }
-    buf[BUF_SIZE-2] = '\r';
+    buf[BUF_SIZE - 2] = '\r';
   }
-  buf[BUF_SIZE-1] = '\n';
+  buf[BUF_SIZE - 1] = '\n';
 
   cout << F("FILE_SIZE_MB = ") << FILE_SIZE_MB << endl;
   cout << F("BUF_SIZE = ") << BUF_SIZE << F(" bytes\n");
   cout << F("Starting write test, please wait.") << endl << endl;
 
   // do write test
-  uint32_t n = FILE_SIZE/BUF_SIZE;
-  cout <<F("write speed and latency") << endl;
+  uint32_t n = FILE_SIZE / BUF_SIZE;
+  cout << F("write speed and latency") << endl;
   cout << F("speed,max,min,avg") << endl;
   cout << F("KB/Sec,usec,usec,usec") << endl;
   for (uint8_t nTest = 0; nTest < WRITE_COUNT; nTest++) {
@@ -222,16 +249,23 @@ void loop() {
     }
     file.sync();
     t = millis() - t;
+    // Remove any unused space in the file.
+    file.truncate();
     s = file.fileSize();
-    cout << s/t <<',' << maxLatency << ',' << minLatency;
-    cout << ',' << totalLatency/n << endl;
+    cout << s / t << ',' << maxLatency << ',' << minLatency;
+    cout << ',' << totalLatency / n << endl;
   }
+
   cout << endl << F("Starting read test, please wait.") << endl;
-  cout << endl <<F("read speed and latency") << endl;
+  cout << endl << F("read speed and latency") << endl;
   cout << F("speed,max,min,avg") << endl;
   cout << F("KB/Sec,usec,usec,usec") << endl;
 
   // do read test
+#if FULL_READ_VERIFY
+  uint8_t cmp[BUF_SIZE];
+  memcpy(cmp, buf, BUF_SIZE);
+#endif  // FULL_READ_VERIFY
   for (uint8_t nTest = 0; nTest < READ_COUNT; nTest++) {
     file.rewind();
     maxLatency = 0;
@@ -240,7 +274,7 @@ void loop() {
     skipLatency = SKIP_FIRST_LATENCY;
     t = millis();
     for (uint32_t i = 0; i < n; i++) {
-      buf[BUF_SIZE-1] = 0;
+      buf[BUF_SIZE - 1] = 0;
       uint32_t m = micros();
       int32_t nr = file.read(buf, BUF_SIZE);
       if (nr != BUF_SIZE) {
@@ -248,8 +282,11 @@ void loop() {
       }
       m = micros() - m;
       totalLatency += m;
-      if (buf[BUF_SIZE-1] != '\n') {
-
+#if FULL_READ_VERIFY
+      if (memcmp(buf, cmp, BUF_SIZE)) {
+#else  // FULL_READ_VERIFY
+      if (buf[BUF_SIZE - 1] != '\n') {
+ #endif  // FULL_READ_VERIFY
         error("data check error");
       }
       if (skipLatency) {
@@ -265,8 +302,8 @@ void loop() {
     }
     s = file.fileSize();
     t = millis() - t;
-    cout << s/t <<',' << maxLatency << ',' << minLatency;
-    cout << ',' << totalLatency/n << endl;
+    cout << s / t << ',' << maxLatency << ',' << minLatency;
+    cout << ',' << totalLatency / n << endl;
   }
   cout << endl << F("Done") << endl;
   file.close();

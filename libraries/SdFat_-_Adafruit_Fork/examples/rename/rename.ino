@@ -1,12 +1,15 @@
 /*
  * This program demonstrates use of rename().
  */
+#ifndef DISABLE_FS_H_WARNING
+#define DISABLE_FS_H_WARNING  // Disable warning for type File not defined. 
+#endif  // DISABLE_FS_H_WARNING 
 #include "SdFat.h"
 #include "sdios.h"
 
 // SD_FAT_TYPE = 0 for SdFat/File as defined in SdFatConfig.h,
 // 1 for FAT16/FAT32, 2 for exFAT, 3 for FAT16/FAT32 and exFAT.
-#define SD_FAT_TYPE 1
+#define SD_FAT_TYPE 3
 
 /*
   Change the value of SD_CS_PIN if you are using SPI and
@@ -20,7 +23,7 @@
 // SDCARD_SS_PIN is defined for the built-in SD on some boards.
 #ifndef SDCARD_SS_PIN
 const uint8_t SD_CS_PIN = SS;
-#else  // SDCARD_SS_PIN
+#else   // SDCARD_SS_PIN
 // Assume built-in SD is used.
 const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
 #endif  // SDCARD_SS_PIN
@@ -29,13 +32,16 @@ const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
 #define SPI_CLOCK SD_SCK_MHZ(50)
 
 // Try to select the best SD card configuration.
-#if HAS_SDIO_CLASS
+#if defined(HAS_TEENSY_SDIO)
 #define SD_CONFIG SdioConfig(FIFO_SDIO)
-#elif  ENABLE_DEDICATED_SPI
+#elif defined(HAS_BUILTIN_PIO_SDIO)
+// See the Rp2040SdioSetup example for boards without a builtin SDIO socket.
+#define SD_CONFIG SdioConfig(PIN_SD_CLK, PIN_SD_CMD_MOSI, PIN_SD_DAT0_MISO)
+#elif ENABLE_DEDICATED_SPI
 #define SD_CONFIG SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SPI_CLOCK)
-#else  // HAS_SDIO_CLASS
+#else  // HAS_TEENSY_SDIO
 #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SPI_CLOCK)
-#endif  // HAS_SDIO_CLASS
+#endif  // HAS_TEENSY_SDIO
 
 #if SD_FAT_TYPE == 0
 SdFat sd;
@@ -80,8 +86,7 @@ void setup() {
   // Remove file/dirs from previous run.
   if (sd.exists("dir2/DIR3/NAME3.txt")) {
     cout << F("Removing /dir2/DIR3/NAME3.txt") << endl;
-    if (!sd.remove("dir2/DIR3/NAME3.txt") ||
-        !sd.rmdir("dir2/DIR3/") ||
+    if (!sd.remove("dir2/DIR3/NAME3.txt") || !sd.rmdir("dir2/DIR3/") ||
         !sd.rmdir("dir2/")) {
       error("remove/rmdir failed");
     }

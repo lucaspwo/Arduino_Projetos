@@ -1,8 +1,15 @@
+// Note: This is an old example.  See the RingBufLogger example for use of
+// the RingBuf class.  The RingBuf class can be used for text and binary data.
+// RingBuf can be use to log from a ISR - see the TeensyDmaAdcLogger example.
+//
 // Example to demonstrate write latency for preallocated exFAT files.
 // I suggest you write a PC program to convert very large bin files.
 //
 // The maximum data rate will depend on the quality of your SD,
 // the size of the FIFO, and using dedicated SPI.
+#ifndef DISABLE_FS_H_WARNING
+#define DISABLE_FS_H_WARNING  // Disable warning for type File not defined. 
+#endif  // DISABLE_FS_H_WARNING 
 #include "SdFat.h"
 #include "FreeStack.h"
 #include "ExFatLogger.h"
@@ -45,7 +52,7 @@ const uint32_t LOG_INTERVAL_USEC = 2000;
 // SDCARD_SS_PIN is defined for the built-in SD on some boards.
 #ifndef SDCARD_SS_PIN
 const uint8_t SD_CS_PIN = SS;
-#else  // SDCARD_SS_PIN
+#else   // SDCARD_SS_PIN
 // Assume built-in SD is used.
 const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
 #endif  // SDCARD_SS_PIN
@@ -69,13 +76,16 @@ const uint32_t PREALLOCATE_SIZE_MiB = 1024UL;
 #define SPI_CLOCK SD_SCK_MHZ(50)
 
 // Try to select the best SD card configuration.
-#if HAS_SDIO_CLASS
+#if defined(HAS_TEENSY_SDIO)
 #define SD_CONFIG SdioConfig(FIFO_SDIO)
-#elif  ENABLE_DEDICATED_SPI
+#elif defined(HAS_BUILTIN_PIO_SDIO)
+// See the Rp2040SdioSetup example for boards without a builtin SDIO socket.
+#define SD_CONFIG SdioConfig(PIN_SD_CLK, PIN_SD_CMD_MOSI, PIN_SD_DAT0_MISO)
+#elif ENABLE_DEDICATED_SPI
 #define SD_CONFIG SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SPI_CLOCK)
-#else  // HAS_SDIO_CLASS
+#else  // HAS_TEENSY_SDIO
 #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SPI_CLOCK)
-#endif  // HAS_SDIO_CLASS
+#endif  // HAS_TEENSY_SDIO
 
 // Save SRAM if 328.
 #ifdef __AVR_ATmega328P__
@@ -92,7 +102,7 @@ void logRecord(data_t* data, uint16_t overrun) {
     data->adc[0] = 0X8000 | overrun;
   } else {
     for (size_t i = 0; i < ADC_COUNT; i++) {
-      data->adc[i] = analogRead(i);
+      data->adc[i] = analogRead(A0 + i);
     }
   }
 }
@@ -127,11 +137,11 @@ void printRecord(Print* pr, data_t* data) {
   }
 }
 //==============================================================================
-const uint64_t PREALLOCATE_SIZE  =  (uint64_t)PREALLOCATE_SIZE_MiB << 20;
+const uint64_t PREALLOCATE_SIZE = (uint64_t)PREALLOCATE_SIZE_MiB << 20;
 // Max length of file name including zero byte.
 #define FILE_NAME_DIM 40
 // Max number of records to buffer while SD is busy.
-const size_t FIFO_DIM = 512*FIFO_SIZE_SECTORS/sizeof(data_t);
+const size_t FIFO_DIM = 512 * FIFO_SIZE_SECTORS / sizeof(data_t);
 
 #if SD_FAT_TYPE == 0
 typedef SdFat sd_t;
@@ -191,22 +201,22 @@ void binaryToCsv() {
   data_t binData[FIFO_DIM];
 
   if (!binFile.seekSet(512)) {
-	  error("binFile.seek failed");
+    error("binFile.seek failed");
   }
   uint32_t tPct = millis();
   printRecord(&csvFile, nullptr);
   while (!Serial.available() && binFile.available()) {
     int nb = binFile.read(binData, sizeof(binData));
-    if (nb <= 0 ) {
+    if (nb <= 0) {
       error("read binFile failed");
     }
-    size_t nr = nb/sizeof(data_t);
+    size_t nr = nb / sizeof(data_t);
     for (size_t i = 0; i < nr; i++) {
       printRecord(&csvFile, &binData[i]);
     }
 
     if ((millis() - tPct) > 1000) {
-      uint8_t pct = binFile.curPosition()/(binFile.fileSize()/100);
+      uint8_t pct = binFile.curPosition() / (binFile.fileSize() / 100);
       if (pct != lastPct) {
         tPct = millis();
         lastPct = pct;
@@ -221,7 +231,7 @@ void binaryToCsv() {
   }
   csvFile.close();
   Serial.print(F("Done: "));
-  Serial.print(0.001*(millis() - t0));
+  Serial.print(0.001 * (millis() - t0));
   Serial.println(F(" Seconds"));
 }
 //------------------------------------------------------------------------------
@@ -302,7 +312,7 @@ void logData() {
   uint16_t overrun = 0;
   uint16_t maxOverrun = 0;
   uint32_t totalOverrun = 0;
-  uint32_t fifoBuf[128*FIFO_SIZE_SECTORS];
+  uint32_t fifoBuf[128 * FIFO_SIZE_SECTORS];
   data_t* fifoData = (data_t*)fifoBuf;
 
   // Write dummy sector to start multi-block write.
@@ -315,7 +325,8 @@ void logData() {
   Serial.println(F("Type any character to stop"));
 
   // Wait until SD is not busy.
-  while (sd.card()->isBusy()) {}
+  while (sd.card()->isBusy()) {
+  }
 
   // Start time for log file.
   uint32_t m = millis();
@@ -370,9 +381,9 @@ void logData() {
     if (!sd.card()->isBusy()) {
       size_t nw = fifoHead > fifoTail ? fifoCount : FIFO_DIM - fifoTail;
       // Limit write time by not writing more than 512 bytes.
-      const size_t MAX_WRITE = 512/sizeof(data_t);
+      const size_t MAX_WRITE = 512 / sizeof(data_t);
       if (nw > MAX_WRITE) nw = MAX_WRITE;
-      size_t nb = nw*sizeof(data_t);
+      size_t nb = nw * sizeof(data_t);
       uint32_t usec = micros();
       if (nb != binFile.write(fifoData + fifoTail, nb)) {
         error("write binFile failed");
@@ -392,7 +403,7 @@ void logData() {
     }
   }
   Serial.print(F("\nLog time: "));
-  Serial.print(0.001*(millis() - m));
+  Serial.print(0.001 * (millis() - m));
   Serial.println(F(" Seconds"));
   binFile.truncate();
   binFile.sync();
@@ -469,7 +480,7 @@ void printUnusedStack() {
 //------------------------------------------------------------------------------
 bool serialReadLine(char* str, size_t size) {
   size_t n = 0;
-  while(!Serial.available()) {
+  while (!Serial.available()) {
     yield();
   }
   while (true) {
@@ -481,7 +492,8 @@ bool serialReadLine(char* str, size_t size) {
       return false;
     }
     uint32_t m = millis();
-    while (!Serial.available() && (millis() - m) < 100){}
+    while (!Serial.available() && (millis() - m) < 100) {
+    }
     if (!Serial.available()) break;
   }
   str[n] = 0;
@@ -525,9 +537,9 @@ void setup() {
   }
   FillStack();
 #if !ENABLE_DEDICATED_SPI
-  Serial.println(F(
-    "\nFor best performance edit SdFatConfig.h\n"
-    "and set ENABLE_DEDICATED_SPI nonzero"));
+  Serial.println(
+      F("\nFor best performance edit SdFatConfig.h\n"
+        "and set ENABLE_DEDICATED_SPI nonzero"));
 #endif  // !ENABLE_DEDICATED_SPI
 
   Serial.print(FIFO_DIM);
@@ -567,7 +579,7 @@ void loop() {
   Serial.println(F("p - print data to Serial"));
   Serial.println(F("r - record data"));
   Serial.println(F("t - test without logging"));
-  while(!Serial.available()) {
+  while (!Serial.available()) {
     yield();
   }
   char c = tolower(Serial.read());

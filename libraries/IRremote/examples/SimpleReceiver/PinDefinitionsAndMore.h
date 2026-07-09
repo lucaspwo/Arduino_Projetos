@@ -351,18 +351,17 @@ void noTone(uint8_t aPinNumber){
 #define _IR_TIMING_TEST_PIN 7
 #endif // defined(ESP8266)
 
-#if defined(ESP32) || defined(ARDUINO_ARCH_RP2040) || defined(PARTICLE) || defined(ARDUINO_ARCH_MBED)
-#define SEND_PWM_BY_TIMER // We do not have pin restrictions for this CPU's, so lets use the hardware PWM for send carrier signal generation
-#else
-# if defined(SEND_PWM_BY_TIMER)
+#if !(defined(ESP32) || defined(ARDUINO_ARCH_RP2040) || defined(PARTICLE) || defined(ARDUINO_ARCH_MBED)) && defined(SEND_PWM_BY_TIMER)
 #undef IR_SEND_PIN // SendPin is determined by timer! This avoids warnings in IRremote.hpp and IRTimer.hpp
-#  endif
 #endif
 
 #if !defined (FLASHEND)
 #define FLASHEND 0xFFFF // Dummy value for platforms where FLASHEND is not defined
 #endif
 
-#if !defined (RAMEND)
-#define RAMEND 0x0FFF // Dummy value for platforms where RAMEND is not defined
+#if !defined (RAMSIZE) && defined(RAMEND) && defined(RAMSTART)
+#define RAMSIZE (RAMEND - RAMSTART + 1) //
+#endif
+#if !defined (RAMSIZE)
+#define RAMSIZE 0x1000 // 4k Dummy value for platforms where RAMSIZE is not defined
 #endif

@@ -38,8 +38,7 @@
  */
 //#define DECODE_DENON        // Includes Sharp
 //#define DECODE_JVC
-//#define DECODE_KASEIKYO
-//#define DECODE_PANASONIC    // alias for DECODE_KASEIKYO
+//#define DECODE_KASEIKYO     // Includes Panasonic ~ 640 bytes
 //#define DECODE_LG
 #define DECODE_NEC          // Includes Apple and Onkyo
 //#define DECODE_SAMSUNG
@@ -64,7 +63,7 @@
 
 #include <Arduino.h>
 
-#include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc.
+#include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc. Sets FLASHEND and RAMSIZE and evaluates value of SEND_PWM_BY_TIMER.
 #include <IRremote.hpp>
 
 /*

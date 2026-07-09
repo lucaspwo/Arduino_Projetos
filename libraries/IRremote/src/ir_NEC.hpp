@@ -95,14 +95,14 @@
 #define NEC_BITS                (NEC_ADDRESS_BITS + NEC_COMMAND_BITS)
 #define NEC_UNIT                560             // 21.28 periods of 38 kHz, 11.2 ticks TICKS_LOW = 8.358 TICKS_HIGH = 15.0
 
-#define NEC_HEADER_MARK         (16 * NEC_UNIT) // 9000 | 180
-#define NEC_HEADER_SPACE        (8 * NEC_UNIT)  // 4500 | 90
+#define NEC_HEADER_MARK         (16 * NEC_UNIT) // 8960 | 180
+#define NEC_HEADER_SPACE        (8 * NEC_UNIT)  // 4480 | 90
 
 #define NEC_BIT_MARK            NEC_UNIT
 #define NEC_ONE_SPACE           (3 * NEC_UNIT)  // 1690 | 33.8  TICKS_LOW = 25.07 TICKS_HIGH = 45.0
 #define NEC_ZERO_SPACE          NEC_UNIT
 
-#define NEC_REPEAT_HEADER_SPACE (4 * NEC_UNIT)  // 2250
+#define NEC_REPEAT_HEADER_SPACE (4 * NEC_UNIT)  // 2240
 
 #define NEC_AVERAGE_DURATION    62000 // NEC_HEADER_MARK + NEC_HEADER_SPACE + 32 * 2,5 * NEC_UNIT + NEC_UNIT // 2.5 because we assume more zeros than ones
 #define NEC_MINIMAL_DURATION    49900 // NEC_HEADER_MARK + NEC_HEADER_SPACE + 32 * 2 * NEC_UNIT + NEC_UNIT // 2.5 because we assume more zeros than ones
@@ -183,7 +183,7 @@ void IRsend::sendNEC(uint16_t aAddress, uint16_t aCommand, int_fast8_t aNumberOf
 
 /**
  * There is NO delay after the last sent repeat!
- * @param aNumberOfRepeats  If < 0 then only a special repeat frame without leading and trailing space
+ * @param aNumberOfRepeats  If < 0 then only a special NEC repeat frame without leading and trailing space
  *                          will be sent by calling NECProtocolConstants.SpecialSendRepeatFunction().
  */
 void IRsend::sendOnkyo(uint16_t aAddress, uint16_t aCommand, int_fast8_t aNumberOfRepeats) {
@@ -239,7 +239,7 @@ bool IRrecv::decodeNEC() {
      * Next try the decode
      */
     // Check we have the right amount of data (68). The +4 is for initial gap, start bit mark and space + stop bit mark.
-    if (decodedIRData.rawlen != ((2 * NEC_BITS) + 4) && (decodedIRData.rawlen != 4)) {
+    if (!(decodedIRData.rawlen == ((2 * NEC_BITS) + 4) || (decodedIRData.rawlen == 4))) {
         DEBUG_PRINT(F("NEC: Data length="));
         DEBUG_PRINT(decodedIRData.rawlen);
         DEBUG_PRINTLN(F(" is not 68 or 4"));
@@ -258,7 +258,7 @@ bool IRrecv::decodeNEC() {
             decodedIRData.flags = IRDATA_FLAGS_IS_REPEAT | IRDATA_FLAGS_IS_LSB_FIRST;
             decodedIRData.address = lastDecodedAddress;
             decodedIRData.command = lastDecodedCommand;
-            decodedIRData.protocol = lastDecodedProtocol;
+            decodedIRData.protocol = lastDecodedProtocol; // Allow recognition of repeats of NEC, APPLE, ONKYO and OPENLASIR and maybe LG
             return true;
         }
         return false;
@@ -279,7 +279,7 @@ bool IRrecv::decodeNEC() {
     tValue.ULong = decodedIRData.decodedRawData;
     decodedIRData.command = tValue.UByte.MidHighByte; // 8 bit
 
-#if defined(DECODE_ONKYO)
+#if defined(DECODE_ONKYO) // Decodes NEC and Apple as Onkyo
     // Here only Onkyo protocol is supported -> force 16 bit address and command decoding. No NEC decoding possible!
     decodedIRData.address = tValue.UWord.LowWord; // first 16 bit
     decodedIRData.protocol = ONKYO;

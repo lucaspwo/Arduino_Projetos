@@ -50,8 +50,6 @@
 
 #include <Arduino.h>
 
-#include "PinDefinitionsAndMore.h" // Set IR_RECEIVE_PIN for different CPU's
-
 //#define DEBUG // to see if attachInterrupt is used
 //#define TRACE // to see the state of the ISR state machine
 
@@ -67,6 +65,7 @@
  */
 //#define DISABLE_PARITY_CHECKS // Disable parity checks. Saves 48 bytes of program memory.
 //#define USE_CALLBACK_FOR_TINY_RECEIVER  // Call the user provided function "void handleReceivedTinyIRData()" each time a frame or repeat is received.
+#include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc. Sets FLASHEND and RAMSIZE and evaluates value of SEND_PWM_BY_TIMER.
 #include "TinyIRReceiver.hpp" // include the code
 
 void setup() {
@@ -89,7 +88,7 @@ void setup() {
     Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_TINYIR));
 
     // Enables the interrupt generation on change of IR input signal
-    if (!initPCIInterruptForTinyReceiver()) {
+    if (!initPCIInterruptForTinyIRReceiver()) {
         Serial.println(F("No interrupt available for pin " STR(IR_RECEIVE_PIN))); // optimized out by the compiler, if not required :-)
     }
 #if defined(USE_FAST_PROTOCOL)
@@ -100,7 +99,7 @@ void setup() {
 }
 
 void loop() {
-    if (TinyReceiverDecode()) {
+    if (TinyIRReceiverDecode()) {
         /*
          * The library has already copied the data used for this output,
          * so there is no need to do this in the callback function.
@@ -157,7 +156,7 @@ void handleReceivedTinyIRData() {
      */
 #  else
     // As an example, print very short output, since we are in an interrupt context and do not want to miss the next interrupts of the repeats coming soon
-    printTinyReceiverResultMinimal(&Serial);
+    printTinyIRReceiverResultMinimal(&Serial);
 #  endif
     if (TinyIRReceiverData.Command == 0x10) {
         // do something SHORT here

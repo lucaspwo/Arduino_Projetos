@@ -61,11 +61,11 @@
  * OpenLASIR uses the same timing as NEC but rearranges the address/command structure:
  *   - 8-bit address with 8-bit inverted complement (for error checking)
  *   - 16-bit command with no error check
- *     Bits  0-7:   Block ID              (8 bits)  ← Address low byte
- *     Bits  8-15:  ~Block ID             (8 bits)  ← Address high byte (inverted, for error check)
- *     Bits 16-23:  Device ID             (8 bits)  ← Command bits 0-7
- *     Bits 24-28:  Mode                  (5 bits)  ← Command bits 8-12
- *     Bits 29-31:  Data (color, etc.)    (3 bits)  ← Command bits 13-15
+ *     Bits  0-7:   Block ID              (8 bits)  - Address low byte
+ *     Bits  8-15:  ~Block ID             (8 bits)  - Address high byte (inverted, for error check)
+ *     Bits 16-23:  Device ID             (8 bits)  - Command bits 0-7
+ *     Bits 24-28:  Mode                  (5 bits)  - Command bits 8-12
+ *     Bits 29-31:  Data (color, etc.)    (3 bits)  - Command bits 13-15
  *
  * This is the opposite of NEC Extended, which uses 16-bit address and 8-bit validated command.
  *
@@ -182,7 +182,7 @@ uint16_t IRsend::computeOpenLASIRRawCommand(uint8_t aDeviceID, uint8_t aMode, ui
  *
  * @param aAddress        8-bit address (Block ID). Only lower 8 bits are used.
  * @param aCommand        16-bit command (Device ID + Mode + Data).
- * @param aNumberOfRepeats  If < 0 then only a special repeat frame will be sent.
+ * @param aNumberOfRepeats  If < 0 then only a special NEC repeat frame will be sent.
  */
 void IRsend::sendOpenLASIR(uint8_t aAddress, uint16_t aCommand, int_fast8_t aNumberOfRepeats) {
     sendPulseDistanceWidth_P(&NECProtocolConstants, computeOpenLASIRRawDataAndChecksum(aAddress, aCommand), OPENLASIR_BITS,
@@ -197,7 +197,7 @@ void IRsend::sendOpenLASIR(uint8_t aAddress, uint16_t aCommand, int_fast8_t aNum
  * @param aDeviceID     8-bit Device ID.
  * @param aMode         5-bit Mode.
  * @param aData         3-bit Data (color, etc.).
- * @param aNumberOfRepeats  If < 0 then only a special repeat frame will be sent.
+ * @param aNumberOfRepeats  If < 0 then only a special NEC repeat frame will be sent.
  */
 void IRsend::sendOpenLASIR(uint8_t aAddress, uint8_t aDeviceID, uint8_t aMode, uint8_t aData, int_fast8_t aNumberOfRepeats) {
     sendPulseDistanceWidth_P(&NECProtocolConstants,
@@ -208,7 +208,7 @@ void IRsend::sendOpenLASIR(uint8_t aAddress, uint8_t aDeviceID, uint8_t aMode, u
 /**
  * Send raw 32-bit OpenLASIR data.
  * @param aRawData          The pre-computed 32-bit raw data.
- * @param aNumberOfRepeats  If < 0 then only a special repeat frame will be sent.
+ * @param aNumberOfRepeats  If < 0 then only a special NEC repeat frame will be sent.
  */
 void IRsend::sendOpenLASIRRaw(uint32_t aRawData, int_fast8_t aNumberOfRepeats) {
     sendPulseDistanceWidth_P(&NECProtocolConstants, aRawData, OPENLASIR_BITS, aNumberOfRepeats);
@@ -234,7 +234,7 @@ bool IRrecv::decodeOpenLASIR() {
      */
 
     // Check we have the right amount of data (68). The +4 is for initial gap, start bit mark and space + stop bit mark.
-    if (decodedIRData.rawlen != ((2 * OPENLASIR_BITS) + 4) && (decodedIRData.rawlen != 4)) {
+    if (!(decodedIRData.rawlen == ((2 * OPENLASIR_BITS) + 4) || (decodedIRData.rawlen == 4))) {
         DEBUG_PRINT(F("OpenLASIR: Data length="));
         DEBUG_PRINT(decodedIRData.rawlen);
         DEBUG_PRINTLN(F(" is not 68 or 4"));
@@ -246,19 +246,19 @@ bool IRrecv::decodeOpenLASIR() {
         return false;
     }
 
+#if !defined(DECODE_NEC) // This code is also contained in NEC sources and does also decode LASIR Repeats :-)
     // Check for repeat - here we have another header space length
     if (decodedIRData.rawlen == 4) {
-        // Only claim this repeat if the last decoded protocol was OpenLASIR
-        if (lastDecodedProtocol == OPENLASIR && matchSpace(irparams.rawbuf[2], NEC_REPEAT_HEADER_SPACE)
-                && matchMark(irparams.rawbuf[3], NEC_BIT_MARK)) {
+        if (matchSpace(irparams.rawbuf[2], NEC_REPEAT_HEADER_SPACE) && matchMark(irparams.rawbuf[3], NEC_BIT_MARK)) {
             decodedIRData.flags = IRDATA_FLAGS_IS_REPEAT | IRDATA_FLAGS_IS_LSB_FIRST;
             decodedIRData.address = lastDecodedAddress;
             decodedIRData.command = lastDecodedCommand;
-            decodedIRData.protocol = OPENLASIR;
+            decodedIRData.protocol = lastDecodedProtocol; // Allow recognition of repeats of another look alike protocol
             return true;
         }
         return false;
     }
+#endif
 
     // Check command header space
     if (!matchSpace(irparams.rawbuf[2], NEC_HEADER_SPACE)) {

@@ -38,7 +38,7 @@
  ************************************************************************************
  * MIT License
  *
- * Copyright (c) 2022-2025 Armin Joachimsmeyer
+ * Copyright (c) 2022-2026 Armin Joachimsmeyer
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -77,7 +77,7 @@
 //#define SHOW_DISTANCE_WIDTH_DECODER_ERRORS // Prints errors which prevents data to be decoded as distance width data
 
 #if !defined(DISTANCE_WIDTH_DECODER_DURATION_ARRAY_SIZE)
-#  if (defined(RAMEND) && RAMEND <= 0x8FF) || (defined(RAMSIZE) && RAMSIZE < 0x8FF)
+#  if (defined(RAMSIZE) && RAMSIZE <= 0x800) || (defined(RAMEND) && RAMEND <= 0x8FF)
 #define DISTANCE_WIDTH_DECODER_DURATION_ARRAY_SIZE 50 // To save program space, the decoder only accepts mark or space durations up to 50 * 50 (MICROS_PER_TICK) = 2500 microseconds
 #  else
 #define DISTANCE_WIDTH_DECODER_DURATION_ARRAY_SIZE 200 // The decoder accepts mark or space durations up to 200 * 50 (MICROS_PER_TICK) = 10 milliseconds

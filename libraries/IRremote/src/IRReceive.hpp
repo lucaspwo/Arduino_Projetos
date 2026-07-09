@@ -35,6 +35,7 @@
 
 // This block must be located after the includes of other *.hpp files
 //#define LOCAL_DEBUG // This enables debug output only for this file - only for development
+//#define LOCAL_TRACE // This enables trace output only for this file - only for development
 #include "LocalDebugLevelStart.h"
 /*
  * Low level hardware timing measurement
@@ -57,7 +58,9 @@ unsigned long sMicrosAtLastStopTimer = 0; // Used to adjust TickCounterForISR wi
 IRrecv IrReceiver;
 
 /**
- * Instantiate the IRrecv class. Multiple instantiation is not supported.
+ * Instantiate the IRrecv class. Multiple instantiation is supported by activating SUPPORT_MULTIPLE_RECEIVER_INSTANCES and providing
+ * the simple function UserIRReceiveTimerInterruptHandler(). This function is required, because we have only one timer resource.
+ * See the MultipleReceivers example.
  * @param IRReceivePin Arduino pin to use. No sanity check is made.
  */
 IRrecv::IRrecv() {
@@ -69,7 +72,7 @@ IRrecv::IRrecv(uint_fast8_t aReceivePin) {
 }
 
 /**
- * Instantiate the IRrecv class. Multiple instantiation is not supported.
+ * Instantiate the IRrecv class.
  * @param aReceivePin Arduino pin to use, where a demodulating IR receiver is connected.
  * @param aFeedbackLEDPin if 0xFF, then take board specific LED_BUILTIN pin if it is defined as macro
  */
@@ -587,7 +590,7 @@ bool IRrecv::decode() {
     }
 #endif
 
-#if defined(DECODE_PANASONIC) || defined(DECODE_KASEIKYO)
+#if defined(DECODE_KASEIKYO)
     TRACE_PRINTLN(F("Attempting Panasonic/Kaseikyo decode"));
     if (decodeKaseikyo()) {
         return true;
@@ -1228,12 +1231,12 @@ bool IRrecv::checkHeader(PulseDistanceWidthProtocolConstants *aProtocolConstants
 bool IRrecv::checkHeader_P(PulseDistanceWidthProtocolConstants const *aProtocolConstantsPGM) {
 // Check header "mark" and "space"
     if (!matchMark(irparams.rawbuf[1], pgm_read_word(&aProtocolConstantsPGM->DistanceWidthTimingInfo.HeaderMarkMicros))) {
-        TRACE_PRINT(::getProtocolString((decode_type_t) pgm_read_byte(&aProtocolConstantsPGM->ProtocolIndex)));
+        TRACE_PRINT(::getProtocolString((decode_type_t ) pgm_read_byte(&aProtocolConstantsPGM->ProtocolIndex)));
         TRACE_PRINTLN(F(": Header mark length is wrong"));
         return false;
     }
     if (!matchSpace(irparams.rawbuf[2], pgm_read_word(&aProtocolConstantsPGM->DistanceWidthTimingInfo.HeaderSpaceMicros))) {
-        TRACE_PRINT(::getProtocolString((decode_type_t) pgm_read_byte(&aProtocolConstantsPGM->ProtocolIndex)));
+        TRACE_PRINT(::getProtocolString((decode_type_t ) pgm_read_byte(&aProtocolConstantsPGM->ProtocolIndex)));
         TRACE_PRINTLN(F(": Header space length is wrong"));
         return false;
     }
@@ -1278,17 +1281,43 @@ bool matchTicks(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros) {
 
     bool passed = (tMeasuredMicros >= (tMatchValueMicrosQuarter * 3) && tMeasuredMicros <= (tMatchValueMicrosQuarter * 5));
 #if defined(LOCAL_TRACE)
-        if (passed) {
-            Serial.println(F(" => passed"));
-        } else {
-            Serial.println(F(" => FAILED"));
-        }
+    if (passed) {
+        Serial.println(F(" => passed"));
+    } else {
+        Serial.println(F(" => FAILED"));
+    }
 #endif
     return passed;
 }
 
+bool matchTicksWithGreaterRange(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros) {
+    uint16_t tMeasuredMicros = (aMeasuredTicks * MICROS_PER_TICK);
+    uint16_t tMatchValueMicrosQuarter = aMatchValueMicros / 4;
+
+    TRACE_PRINT(F("Testing with greater range (actual vs desired): "));
+    TRACE_PRINT(tMeasuredMicros);
+    TRACE_PRINT(F("us vs "));
+    TRACE_PRINT(aMatchValueMicros);
+    TRACE_PRINT(F("us: "));
+    TRACE_PRINT(tMatchValueMicrosQuarter * 2); // rounded value because we divide first
+    TRACE_PRINT(F(" <= "));
+    TRACE_PRINT(aMeasuredTicks * MICROS_PER_TICK);
+    TRACE_PRINT(F(" <= "));
+    TRACE_PRINT(tMatchValueMicrosQuarter * 6);
+
+    bool passed = (tMeasuredMicros >= (tMatchValueMicrosQuarter * 2) && tMeasuredMicros <= (tMatchValueMicrosQuarter * 6));
+#if defined(LOCAL_TRACE)
+    if (passed) {
+        Serial.println(F(" => passed"));
+    } else {
+        Serial.println(F(" => FAILED"));
+    }
+#endif
+    return passed;
+}
 /**
  * Match function WITH compensating for marks exceeded or spaces shortened by demodulator hardware
+ * With MARK_EXCESS_MICROS default value of 20 we cannot match 200 to 250, because we have 186 < 180 <= 310
  * @return true, if values match
  */
 bool matchTicks(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros, int16_t aCompensationMicrosForTicks) {
@@ -1302,20 +1331,47 @@ bool matchTicks(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros, int16_t aCo
     TRACE_PRINT(F("us: "));
     TRACE_PRINT(tMatchValueMicrosQuarter * 3); // rounded value because we divide first
     TRACE_PRINT(F(" < "));
-    TRACE_PRINT(aMeasuredTicks * MICROS_PER_TICK);
+    TRACE_PRINT(tMeasuredMicros);
     TRACE_PRINT(F(" <= "));
     TRACE_PRINT(tMatchValueMicrosQuarter * 5);
 
     bool passed = (tMeasuredMicros > (tMatchValueMicrosQuarter * 3) && tMeasuredMicros <= (tMatchValueMicrosQuarter * 5));
 #if defined(LOCAL_TRACE)
-        if (passed) {
-            Serial.println(F(" => passed"));
-        } else {
-            Serial.println(F(" => FAILED"));
-        }
+    if (passed) {
+        Serial.println(F(" => passed"));
+    } else {
+        Serial.println(F(" => FAILED"));
+    }
 #endif
     return passed;
 }
+
+bool matchTicksWithGreaterRange(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros, int16_t aCompensationMicrosForTicks) {
+    uint16_t tMeasuredMicros = (aMeasuredTicks * MICROS_PER_TICK) + aCompensationMicrosForTicks;
+    uint16_t tMatchValueMicrosQuarter = aMatchValueMicros / 4;
+
+    TRACE_PRINT(F("Testing with greater range (actual vs desired): "));
+    TRACE_PRINT(tMeasuredMicros);
+    TRACE_PRINT(F("us vs "));
+    TRACE_PRINT(aMatchValueMicros);
+    TRACE_PRINT(F("us: "));
+    TRACE_PRINT(tMatchValueMicrosQuarter * 2); // rounded value because we divide first
+    TRACE_PRINT(F(" < "));
+    TRACE_PRINT(tMeasuredMicros);
+    TRACE_PRINT(F(" <= "));
+    TRACE_PRINT(tMatchValueMicrosQuarter * 6);
+
+    bool passed = (tMeasuredMicros > (tMatchValueMicrosQuarter * 2) && tMeasuredMicros <= (tMatchValueMicrosQuarter * 6));
+#if defined(LOCAL_TRACE)
+    if (passed) {
+        Serial.println(F(" => passed"));
+    } else {
+        Serial.println(F(" => FAILED"));
+    }
+#endif
+    return passed;
+}
+
 bool MATCH(uint16_t measured_ticks, uint16_t desired_us) {
     return matchTicks(measured_ticks, desired_us);
 }
@@ -1364,6 +1420,14 @@ bool matchMark(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros) {
 #endif
 }
 
+bool matchMarkWithGreaterRange(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros) {
+#if (MARK_EXCESS_MICROS == 0)
+    return matchTicksWithGreaterRange(aMeasuredTicks, aMatchValueMicros);
+#else
+    return matchTicksWithGreaterRange(aMeasuredTicks, aMatchValueMicros, -MARK_EXCESS_MICROS); // New handling of MARK_EXCESS_MICROS without strange rounding errors
+#endif
+}
+
 bool MATCH_MARK(uint16_t measured_ticks, uint16_t desired_us) {
     return matchMark(measured_ticks, desired_us);
 }
@@ -1407,6 +1471,14 @@ bool matchSpace(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros) {
         }
 #  endif
         return passed;
+#endif
+}
+
+bool matchSpaceWithGreaterRange(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros) {
+#if (MARK_EXCESS_MICROS == 0)
+    return matchTicksWithGreaterRange(aMeasuredTicks, aMatchValueMicros);
+#else
+    return matchTicksWithGreaterRange(aMeasuredTicks, aMatchValueMicros, MARK_EXCESS_MICROS); // New handling of MARK_EXCESS_MICROS without strange rounding errors
 #endif
 }
 
@@ -1465,7 +1537,7 @@ void printActiveIRProtocols(Print *aSerial) {
 #elif defined(DECODE_NEC)
         aSerial->print(F("NEC/NEC2/Onkyo/Apple, "));
 #endif
-#if defined(DECODE_PANASONIC) || defined(DECODE_KASEIKYO)
+#if defined(DECODE_KASEIKYO)
         aSerial->print(F("Panasonic/Kaseikyo, "));
 #endif
 #if defined(DECODE_DENON)
@@ -1948,7 +2020,7 @@ void IRrecv::printIRSendUsage(Print *aSerial) {
         if (decodedIRData.protocol == UNKNOWN){
             aSerial->println();
             aSerial->print(F("  "));
-            printIRResultAsCArray(&Serial);
+            printIRResultAsCArray(aSerial);
             aSerial->print(F("  "));
         }
         aSerial->print(F("IrSender.send"));
@@ -1966,6 +2038,8 @@ void IRrecv::printIRSendUsage(Print *aSerial) {
          * PulseDistanceWidthFromArray(38, 8900, 4350, 600, 1650, 600, 550, &tRawData[0], 72, PROTOCOL_IS_LSB_FIRST, <RepeatPeriodMillis>, <numberOfRepeats>);
          * or
          * <Protocol_Name>(0x<Address>, 0x<Command>, <numberOfRepeats>);
+         * or
+         * FAST(0x<Command>, <numberOfRepeats>);
          */
         if (decodedIRData.protocol == UNKNOWN){
             aSerial->print(F("Raw(rawIRTimings, sizeof(rawIRTimings) / sizeof(rawIRTimings[0]), 38, <RepeatPeriodMillis>"));
@@ -2018,20 +2092,28 @@ void IRrecv::printIRSendUsage(Print *aSerial) {
             if (decodedIRData.protocol == MAGIQUEST) {
 #  if (__INT_WIDTH__ < 32)
                 aSerial->print(decodedIRData.decodedRawData, HEX);
+                aSerial->print(F(", 0x"));
 #  else
                 PrintULL::print(aSerial, decodedIRData.decodedRawData, HEX);
+                aSerial->print(F(", 0x"));
 #  endif
             } else {
+#  if defined(DECODE_FAST)
+                // do not print address parameter for FAST protocol
+                if (decodedIRData.protocol != FAST) {
+                    aSerial->print(decodedIRData.address, HEX);
+                    aSerial->print(F(", 0x"));
+                }
+#  else
                 aSerial->print(decodedIRData.address, HEX);
+                aSerial->print(F(", 0x"));
+#  endif
             }
 #else
-            /*
-             * New decoders have address and command
-             */
             aSerial->print(decodedIRData.address, HEX);
+            aSerial->print(F(", 0x"));
 #endif
 
-            aSerial->print(F(", 0x"));
             aSerial->print(decodedIRData.command, HEX);
             if (decodedIRData.protocol == SONY) {
                 printNumberOfRepeats(aSerial);
@@ -2043,7 +2125,7 @@ void IRrecv::printIRSendUsage(Print *aSerial) {
             }
         }
 
-#if defined(DECODE_PANASONIC) || defined(DECODE_KASEIKYO) || defined(DECODE_RC6) || defined(DECODE_MARANTZ)
+#if defined(DECODE_KASEIKYO) || defined(DECODE_RC6) || defined(DECODE_MARANTZ)
         if ((decodedIRData.flags & IRDATA_FLAGS_EXTRA_INFO) && (decodedIRData.protocol == KASEIKYO || decodedIRData.protocol == RC6A || decodedIRData.protocol == MARANTZ)) {
             // Vendor code, Customer or MarantzExtension parameter, which is after numberOfRepeats parameter
             aSerial->print(F(", 0x"));
@@ -2209,7 +2291,6 @@ void IRrecv::printIRResultRawFormatted(Print *aSerial, bool aOutputMicrosecondsI
         aSerial->println(F(" ticks"));
     }
     aSerial->println();
-
 }
 
 /**

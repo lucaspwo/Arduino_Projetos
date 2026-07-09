@@ -44,6 +44,8 @@
 #endif
 #if defined(F_CPU) // F_CPU is used to generate the receive send timings in some CPU's
 #define CLOCKS_PER_MICRO (F_CPU / MICROS_IN_ONE_SECOND)
+#else
+#define CLOCKS_PER_MICRO 48 // just a guess if F_CPU is not specified
 #endif
 
 /*
@@ -65,17 +67,18 @@
  * 16 bit protocols like BOSEWAVE, DENON, FAST, JVC, LEGO_PF, RC5, SONY(12 or 15) requires a buffer length of 36.
  * MAGIQUEST requires a buffer length of 112.
  * Air conditioners often send a longer protocol data stream up to 750 bits.
+ * Default is 100 for 512 bytes RAM, 200 for 2k RAM and 750 for more than 2k RAM
  */
 #if !defined(RAW_BUFFER_LENGTH)
-#  if (defined(RAMEND) && RAMEND <= 0x2FF) || (defined(RAMSIZE) && RAMSIZE < 0x2FF)
-// for RAMsize <= 512 bytes
+#  if (defined(RAMSIZE) && RAMSIZE <= 0x200) || (defined(RAMEND) && RAMEND <= 0x2FF) // assuming RAMSTART at 0x100
+// For RAMSIZE <= 512 bytes
 #define RAW_BUFFER_LENGTH  100  ///< Length of raw duration buffer. Must be even. 100 supports up to 48 bit codings inclusive 1 start and 1 stop bit.
-#  elif (defined(RAMEND) && RAMEND <= 0x8FF) || (defined(RAMSIZE) && RAMSIZE < 0x8FF)
-// for RAMsize <= 2k
+#  elif (defined(RAMSIZE) && RAMSIZE < 0x8FF) || (defined(RAMEND) && RAMEND <= 0x8FF)  // assuming RAMSTART at 0x100
+// For RAMSIZE <= 2k
 #define RAW_BUFFER_LENGTH  200  ///< Length of raw duration buffer. Must be even. 100 supports up to 48 bit codings inclusive 1 start and 1 stop bit.
 #  else
 // For undefined or bigger RAMsize
-#define RAW_BUFFER_LENGTH  750 // The value for air condition remotes.
+#define RAW_BUFFER_LENGTH  750 // The value required for air condition remotes.
 #  endif
 #endif
 #if RAW_BUFFER_LENGTH % 2 == 1
@@ -154,6 +157,8 @@ typedef uint32_t IRDecodedRawDataType;
 typedef uint64_t IRDecodedRawDataType;
 #define BITS_IN_DECODED_RAW_DATA_TYPE   64
 #endif
+typedef IRDecodedRawDataType IRRawDataType; // Define old IRRawDataType (removed in 4.6.0) for backward compatibility
+
 #define DECODED_RAW_DATA_ARRAY_SIZE     ((((RAW_BUFFER_LENGTH - 2) - 1) / (2 * BITS_IN_DECODED_RAW_DATA_TYPE)) + 1) // The -2 is for initial gap + stop bit mark, 128 mark + spaces for 64 bit.
 /**
  * Data structure for the user application, available as decodedIRData.
@@ -426,6 +431,10 @@ bool matchTicks(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros);
 bool matchTicks(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros, int16_t aCompensationMicrosForTicks);
 bool matchMark(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros);
 bool matchSpace(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros);
+bool matchTicksWithGreaterRange(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros);
+bool matchTicksWithGreaterRange(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros, int16_t aCompensationMicrosForTicks);
+bool matchMarkWithGreaterRange(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros);
+bool matchSpaceWithGreaterRange(uint16_t aMeasuredTicks, uint16_t aMatchValueMicros);
 
 /*
  * Old function names
@@ -618,10 +627,9 @@ public:
     void sendFAST(uint8_t aCommand, int_fast8_t aNumberOfRepeats);
     void sendJVC(uint8_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats);
 
-    void sendLG2Repeat();
+    void sendLGRepeat();
     uint32_t computeLGRawDataAndChecksum(uint8_t aAddress, uint16_t aCommand);
     void sendLG(uint8_t aAddress, uint16_t aCommand, int_fast8_t aNumberOfRepeats);
-    void sendLG2(uint8_t aAddress, uint16_t aCommand, int_fast8_t aNumberOfRepeats);
     void sendLGRaw(uint32_t aRawData, int_fast8_t aNumberOfRepeats = NO_REPEATS);
 
     void sendNECRepeat();
@@ -650,7 +658,7 @@ public:
     void sendKaseikyo_Sharp(uint16_t aAddress, uint8_t aData, int_fast8_t aNumberOfRepeats); // LSB first
     void sendKaseikyo_JVC(uint16_t aAddress, uint8_t aData, int_fast8_t aNumberOfRepeats); // LSB first
 
-    void setToggleBitValueForRC5AndRC6(uint8_t aRC5ToggleBitValue);
+    void setNextToggleBitValueForRC5AndRC6(uint8_t aRC5ToggleBitValue);
     void sendRC5(uint8_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats, bool aEnableAutomaticToggle = true);
     void sendRC5Marantz(uint8_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats, uint8_t aMarantzExtension,
             bool aEnableAutomaticToggle = true);
@@ -753,7 +761,7 @@ extern IRsend IrSender;
 
 void sendNECSpecialRepeat();
 void sendOpenLASIRSpecialRepeat();
-void sendLG2SpecialRepeat();
+void sendLGSpecialRepeat();
 void sendSamsungLGSpecialRepeat();
 
 #endif // _IR_REMOTE_INT_H

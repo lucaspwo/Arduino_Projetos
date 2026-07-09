@@ -65,6 +65,74 @@ rawIRTimings[68]:
 Duration=73450us
 
 
+Send RC5 minimal length
+Protocol=RC5 Address=0xA, Command=0x6A, Toggle=1, Raw-Data=0xAAA, 13 bits, MSB first, Gap=765600us, Duration=23100us
+Send with: IrSender.sendRC5(0xA, 0x6A, <numberOfRepeats>);
+rawIRTimings[14]:
+ -765600
+ +1850,-1700
+ +1850,-1700 +1850,-1700 +1850,-1700 +1850,-1700
+ +1800,-1750 +1800
+Duration=23100us
+
+
+Send RC5 maximal length
+Protocol=RC5 Address=0x1F, Command=0x3F, Toggle=1, Raw-Data=0x1FFF, 13 bits, MSB first, Gap=391600us, Duration=24200us
+Send with: IrSender.sendRC5(0x1F, 0x3F, <numberOfRepeats>);
+rawIRTimings[28]:
+ -391600
+ + 900,- 900
+ + 950,- 800 +1000,- 800 + 900,- 900 + 950,- 850
+ + 900,- 850 + 950,- 850 + 900,- 900 + 900,- 900
+ + 900,- 900 + 900,- 900 + 900,- 900 + 950,- 850
+ + 900
+Duration=24200us
+
+
+Send Marantz maximal length
+Protocol=Marantz Address=0x1F, Command=0x3F, Extra=0x3F, Toggle=1, Raw-Data=0x7FFFF, 19 bits, MSB first, Gap=398900us, Duration=38350us
+Send with: IrSender.sendMarantz(0x1F, 0x3F, <numberOfRepeats>, 0x3F);
+rawIRTimings[40]:
+ -398900
+ + 950,- 850
+ + 850,- 950 + 900,- 900 + 950,- 850 + 950,- 800
+ +1000,- 800 + 900,- 900 + 950,-4350 + 950,- 850
+ + 950,- 800 +1000,- 800 + 850,- 950 + 950,- 850
+ + 900,- 850 + 950,- 850 + 950,- 850 + 950,- 800
+ +1000,- 800 + 950,- 850 + 850
+Duration=38350us
+
+
+Send RC6 minimal length
+Protocol=RC6 Address=0x55, Command=0x55, Toggle=1, Raw-Data=0x15555, 20 bits, MSB first, Gap=744250us, Duration=23100us
+Send with: IrSender.sendRC6(0x55, 0x55, <numberOfRepeats>);
+rawIRTimings[26]:
+ -744250
+ +2750,- 800
+ + 550,- 800 + 500,- 400 + 500,- 450 +1400,-1250
+ +1000,- 800 + 950,- 900 + 950,- 850 +1000,- 800
+ + 950,- 850 + 950,- 900 +1000,- 800 +1000
+Duration=23100us
+
+
+Send RC6A maximal length
+Protocol=RC6A Address=0xFF, Command=0xFF, Extra=0x3FFF, Raw-Data=0x7FFFFFFF, 35 bits, MSB first, Gap=397100us, Duration=36850us
+Send with: IrSender.sendRC6A(0xFF, 0xFF, <numberOfRepeats>, 0x3FFF);
+rawIRTimings[72]:
+ -397100
+ +2650,- 900
+ + 550,- 400 + 400,- 500 + 500,- 850 + 500,- 850
+ +1450,- 350 + 550,- 400 + 400,- 500 + 450,- 450
+ + 500,- 400 + 550,- 400 + 400,- 500 + 450,- 450
+ + 550,- 350 + 550,- 400 + 500,- 400 + 450,- 450
+ + 500,- 400 + 500,- 450 + 400,- 500 + 450,- 450
+ + 500,- 400 + 500,- 400 + 450,- 500 + 450,- 450
+ + 500,- 400 + 550,- 350 + 450,- 500 + 450,- 450
+ + 500,- 400 + 500,- 450 + 400,- 500 + 450,- 450
+ + 450,- 450 + 550,- 350 + 500
+Duration=36850us
+
+
 Send arbitrary raw data with 1 repeat and exact timing (16 bit array format) with sendRaw()
 rawIRTimings[18]:
  -770450
@@ -367,6 +435,38 @@ rawIRTimings[112]:
  + 350,- 850 + 350,- 800 + 350,- 800 + 600,- 600
  + 650,- 500 + 400,- 750 + 400,- 800 + 600
 Duration=64900us
+
+
+Send NEC with TinyIRSender
+Protocol=NEC Address=0xF1, Command=0x76, Raw-Data=0x89760EF1, 32 bits, LSB first, Gap=790250us, Duration=75050us
+Send with: IrSender.sendNEC(0xF1, 0x76, <numberOfRepeats>);
+rawIRTimings[68]:
+ -790250
+ +8900,-5250
+ + 600,-1950 + 600,- 650 + 600,- 600 + 600,- 650
+ + 500,-2000 + 650,-1900 + 600,-1950 + 600,-1950
+ + 650,- 600 + 550,-1950 + 650,-1900 + 650,-1900
+ + 650,- 600 + 650,- 550 + 600,- 650 + 600,- 600
+ + 650,- 550 + 650,-1900 + 600,-1950 + 600,- 650
+ + 600,-1950 + 650,-1900 + 650,-1900 + 550,- 650
+ + 600,-1950 + 650,- 550 + 650,- 600 + 600,-1900
+ + 650,- 600 + 600,- 600 + 600,- 650 + 600,-1950
+ + 600
+Duration=75050us
+
+
+Send FAST with TinyIRSender
+Protocol=FAST Address=0x0, Command=0x76, Raw-Data=0x8976, 16 bits, LSB first, Gap=764700us, Duration=32050us
+Send with: IrSender.sendFAST(0x76, <numberOfRepeats>);
+rawIRTimings[36]:
+ -764700
+ +2100,-1200
+ + 550,- 600 + 550,-1850 + 600,-1750 + 600,- 550
+ + 500,-1900 + 600,-1800 + 550,-1800 + 550,- 600
+ + 600,-1800 + 550,- 600 + 600,- 550 + 550,-1800
+ + 600,- 550 + 550,- 600 + 600,- 550 + 550,-1800
+ + 550
+Duration=32050us
 
 
 Send Onkyo (NEC with 16 bit command)
@@ -744,7 +844,7 @@ rawIRTimings[36]:
 Duration=10250us
 
 
-Send 16 bit Bang&Olufsen / originally with 455 kHz
+Send 16 bit Bang&Olufsen - requires originally 455 kHz
 - ENABLE_BEO_WITHOUT_FRAME_GAP is enabled
 rawIRTimings[44]:
  -749450
@@ -791,20 +891,20 @@ Duration=40700us
 
 
 Send LG
-Protocol=LG Address=0xF1, Command=0x9876, Raw-Data=0xF19876E, 28 bits, MSB first, Gap=745850us, Duration=59800us
+Protocol=LG Address=0xF1, Command=0x9876, Raw-Data=0xF19876E, 28 bits, MSB first, Gap=745900us, Duration=59900us
 Send with: IrSender.sendLG(0xF1, 0x9876, <numberOfRepeats>);
 rawIRTimings[60]:
- -745850
- +8950,-4150
- + 550,-1500 + 550,-1550 + 550,-1550 + 550,-1500
- + 600,- 500 + 550,- 500 + 600,- 450 + 550,-1550
- + 550,-1550 + 550,- 500 + 550,- 500 + 550,-1550
- + 550,-1550 + 600,- 450 + 550,- 500 + 550,- 500
- + 550,- 550 + 550,-1550 + 550,-1500 + 600,-1500
- + 550,- 500 + 550,-1550 + 600,-1500 + 550,- 500
- + 600,-1500 + 550,-1550 + 550,-1500 + 600,- 500
+ -745900
+ +8350,-4150
+ + 550,-1550 + 600,-1550 + 550,-1550 + 550,-1550
+ + 600,- 550 + 500,- 550 + 550,- 550 + 550,-1550
+ + 550,-1550 + 550,- 550 + 550,- 550 + 550,-1550
+ + 550,-1550 + 550,- 550 + 550,- 550 + 550,- 550
+ + 550,- 550 + 550,-1550 + 550,-1550 + 550,-1550
+ + 550,- 550 + 550,-1550 + 550,-1550 + 550,- 550
+ + 550,-1550 + 550,-1550 + 550,-1550 + 550,- 550
  + 550
-Duration=59800us
+Duration=59900us
 
 
 Send Bosewave with no address and 8 command bits
@@ -823,7 +923,7 @@ Duration=27150us
 
 Send FAST
 Protocol=FAST Address=0x0, Command=0x76, Raw-Data=0x8976, 16 bits, LSB first, Gap=746700us, Duration=29250us
-Send with: IrSender.sendFAST(0x0, 0x76, <numberOfRepeats>);
+Send with: IrSender.sendFAST(0x76, <numberOfRepeats>);
 rawIRTimings[36]:
  -746700
  +2200,-1000
@@ -965,7 +1065,38 @@ rawIRTimings[68]:
  + 600,- 550 + 600,- 500 + 600,- 550 + 600,-1650
  + 600,-1650 + 650,-1550 + 600,-1650 + 650,- 500
  + 600
-Duration=67900us
+
+
+Send NEC with TinyIRSender
+Protocol=NEC Address=0xF2, Command=0x87, Raw-Data=0x78870DF2, 32 bits, LSB first, Gap=744800us, Duration=75100us
+Send with: IrSender.sendNEC(0xF2, 0x87, <numberOfRepeats>);
+rawIRTimings[68]:
+ -744800
+ +8950,-5250
+ + 550,- 650 + 650,-1900 + 650,- 550 + 550,- 700
+ + 650,-1900 + 650,-1900 + 600,-1950 + 600,-1950
+ + 650,-1900 + 600,- 600 + 550,-2000 + 650,-1900
+ + 600,- 600 + 650,- 600 + 600,- 600 + 650,- 600
+ + 600,-1950 + 600,-1950 + 650,-1900 + 600,- 600
+ + 550,- 700 + 650,- 550 + 650,- 600 + 600,-1950
+ + 650,- 550 + 650,- 550 + 650,- 600 + 600,-1950
+ + 600,-1950 + 600,-1950 + 600,-1950 + 600,- 600
+ + 600
+Duration=75100us
+
+
+Send FAST with TinyIRSender
+Protocol=FAST Address=0x0, Command=0x87, Raw-Data=0x7887, 16 bits, LSB first, Gap=745000us, Duration=32150us
+Send with: IrSender.sendFAST(0x87, <numberOfRepeats>);
+rawIRTimings[36]:
+ -745000
+ +2050,-1250
+ + 600,-1800 + 600,-1800 + 550,-1800 + 600,- 550
+ + 500,- 650 + 550,- 600 + 550,- 600 + 600,-1800
+ + 550,- 600 + 550,- 600 + 550,- 550 + 550,-1850
+ + 600,-1800 + 600,-1750 + 600,-1800 + 550,- 600
+ + 600
+Duration=32150usDuration=67900us
 
 
 Send Onkyo (NEC with 16 bit command)
@@ -1344,7 +1475,7 @@ rawIRTimings[36]:
 Duration=10850us
 
 
-Send 16 bit Bang&Olufsen / originally with 455 kHz
+Send 16 bit Bang&Olufsen - requires originally 455 kHz
 - ENABLE_BEO_WITHOUT_FRAME_GAP is enabled
 rawIRTimings[86]:
  -749450
@@ -1433,7 +1564,7 @@ Duration=27150us
 
 Send FAST
 Protocol=FAST Address=0x0, Command=0x87, Raw-Data=0x7887, 16 bits, LSB first, Gap=726950us, Duration=29200us
-Send with: IrSender.sendFAST(0x0, 0x87, <numberOfRepeats>);
+Send with: IrSender.sendFAST(0x87, <numberOfRepeats>);
 rawIRTimings[36]:
  -726950
  +2200,-1000

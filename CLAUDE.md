@@ -34,6 +34,14 @@ Sketchbook Arduino pessoal com ~230 projetos e 73 libs vendored, acumulado desde
 - Arquitetura e receitas → [MANUTENCAO.md](MANUTENCAO.md)
 - Mapa de símbolos e comandos → [AGENTS.md](AGENTS.md)
 
+## Manutenção destes docs
+
+Se sua mudança invalidar algo citado aqui ou nos docs irmãos — um comando, um
+símbolo, uma referência `arquivo:linha`, a estrutura de pastas — corrija a
+referência **no mesmo commit**. Não reescreva proativamente o que ainda está
+correto. Para um refresh completo, use a skill `/atualizando-docs-manutencao`
+(ela verifica cada ref com `git grep`).
+
 ## Commit/push
 
 Este repo tem remote (`origin`): `git push` vai para **GitHub e GitLab
